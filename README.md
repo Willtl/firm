@@ -12,7 +12,7 @@ To replicate the experiments on datasets like CIFAR-10, you can run the provided
 ```bash
 ./scripts/cifar10.sh
 ```
-For experiments utilizing OE, simply include the `--oe 300k`:
+For experiments utilizing OE, simply include `--oe 300k`:
 
 ```bash
 ./scripts/cifar10.sh --oe 300k
@@ -20,7 +20,7 @@ For experiments utilizing OE, simply include the `--oe 300k`:
 
 All results, including model checkpoints and evaluation logs, will be automatically saved in the following directory structure:
 ```
-save/{dataset_name}_models/{experiment_name}/trial_{number}/
+save/{dataset_name}_models/{experiment_name}/trial_{trial_number}/
 ```
 
 ## Citation
