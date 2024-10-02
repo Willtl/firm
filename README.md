@@ -19,7 +19,7 @@ For experiments utilizing OE, simply include `--oe 300k`:
 ```
 
 All results, including model checkpoints and evaluation logs, will be automatically saved in the following directory structure:
-```
+```bash
 save/{dataset_name}_models/{experiment_name}/trial_{trial_number}/
 ```
 
