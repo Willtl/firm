@@ -12,7 +12,7 @@ To replicate the experiments on datasets like CIFAR-10, you can run the provided
 ```bash
 ./scripts/cifar10.sh
 ```
-For experiments utilizing OE, simply include the --oe flag followed by the desired number of synthetic outliers. For instance, to run the CIFAR-10 experiment with 300k outliers, use:
+For experiments utilizing OE, simply include the `--oe 300k`:
 
 ```bash
 ./scripts/cifar10.sh --oe 300k
