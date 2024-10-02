@@ -65,6 +65,9 @@ def parse_option():
 
     args = parser.parse_args()
 
+    if args.epochs < args.save_freq:
+        raise ValueError(f"Number of epochs ({args.epochs}) cannot be smaller than save frequency ({args.save_freq}).")
+
     args.shift_transform = args.shift_transform.split()
 
     # Check if dataset is path that passed required arguments
@@ -143,35 +146,36 @@ def main():
     # Load highest value of angled score and compute ensemble score
     time.sleep(20)  # give time for io to write results
     results_file_path = os.path.join(args.save_folder, 'results.json')
-    with open(results_file_path, 'r') as f:
-        results = json.load(f)
+    if os.path.exists(results_file_path):
+        with open(results_file_path, 'r') as f:
+            results = json.load(f)
 
-    # Find the index of the largest value in the cos_5_angled array
-    cos_5_angled_values = results['cos_5_angled']
-    best_index = cos_5_angled_values.index(max(cos_5_angled_values))
+        # Find the index of the largest value in the cos_5_angled array
+        cos_5_angled_values = results['cos_5_angled']
+        best_index = cos_5_angled_values.index(max(cos_5_angled_values))
 
-    # Calculate the checkpoint filename based on the save_freq and the index found
-    epoch = (best_index + 1) * args.save_freq
-    checkpoint_filename = f'ckpt_epoch_{epoch}.pth'
-    checkpoint_path = os.path.join(args.save_folder, checkpoint_filename)
+        # Calculate the checkpoint filename based on the save_freq and the index found
+        epoch = (best_index + 1) * args.save_freq
+        checkpoint_filename = f'ckpt_epoch_{epoch}.pth'
+        checkpoint_path = os.path.join(args.save_folder, checkpoint_filename)
 
-    # Run evaluate.py with --ensemble 10 and the best checkpoint
-    cmd = ['python', args.evaluation,
-           '--path', checkpoint_path,
-           '--seed', str(args.seed),
-           '--dataset', args.dataset,
-           '--normal_class', str(args.normal_class),
-           '--model', args.model,
-           '--gpu', str(args.gpu),
-           '--ensemble', '10']
-    print(cmd)
-    if args.test_verbose:
-        cmd.append('--verbose')
-    if args.reproducible:
-        cmd.append('--reproducible')
+        # Run evaluate.py with --ensemble 10 and the best checkpoint
+        cmd = ['python', args.evaluation,
+               '--path', checkpoint_path,
+               '--seed', str(args.seed),
+               '--dataset', args.dataset,
+               '--normal_class', str(args.normal_class),
+               '--model', args.model,
+               '--gpu', str(args.gpu),
+               '--ensemble', '10']
+        print(cmd)
+        if args.test_verbose:
+            cmd.append('--verbose')
+        if args.reproducible:
+            cmd.append('--reproducible')
 
-    print(f'Running command: {" ".join(cmd)}')
-    subprocess.run(cmd)
+        print(f'Running command: {" ".join(cmd)}')
+        subprocess.run(cmd)
 
 
 if __name__ == '__main__':
