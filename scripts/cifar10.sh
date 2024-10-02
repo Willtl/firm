@@ -1,5 +1,17 @@
 #!/bin/bash
 
+# Default value for OE
+oe_flag=''
+
+# Parse arguments for --oe flag
+while [[ "$#" -gt 0 ]]; do
+  case $1 in
+    --oe) oe_flag=$2; shift ;;
+    *) echo "Unknown parameter: $1" ;;
+  esac
+  shift
+done
+
 # Number of trials
 num_trial=5
 
@@ -26,7 +38,7 @@ for normal_class in {0..9}; do
       --gamma 0.0 \
       --augs 'cnr0.25+jitter_b0.4_c0.4_s0.4_h0.4_p1.0+blur_k3_s0.5_p0.75' \
       --shift_transform 'rot90 rot180 rot270' \
-      --oe '' \
+      --oe "$oe_flag" \
       --trial $trial \
       --verbose True \
       --test_verbose False \

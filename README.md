@@ -7,11 +7,21 @@
 In this repository, we provide the code used to run the experiments presented in the paper.
 
 ## Reproducing the Experiments
-To replicate the experiments on CIFAR-10, CIFAR-100, FMNIST, simply run the respective script in the `scripts/` folder.
-To run the same experiments but with Outlier Exposure (OE), add the argument `--oe "300k"` when running the script.
 
-The results, including model checkpoints and evaluation logs, will be saved in the following directory structure:
-`save/{dataset_name}_models/{experiment_name}/trial_{number}/`
+To replicate the experiments on datasets like CIFAR-10, you can run the provided scripts from the root directory using the following commands:
+```bash
+./scripts/cifar10.sh
+```
+For experiments utilizing OE, simply include the --oe flag followed by the desired number of synthetic outliers. For instance, to run the CIFAR-10 experiment with 300k outliers, use:
+
+```bash
+./scripts/cifar10.sh --oe 300k
+```
+
+All results, including model checkpoints and evaluation logs, will be automatically saved in the following directory structure:
+```
+save/{dataset_name}_models/{experiment_name}/trial_{number}/
+```
 
 ## Citation
 This work (and repository) is private and currently under double-blind review.
