@@ -32,7 +32,7 @@ def parse_option():
     parser.add_argument('--lr_min', type=float, default=1e-7, help='min. lr')
     parser.add_argument('--weight_decay', type=float, default=0.0003, help='regularization')
     parser.add_argument('--loss', type=str, default='FIRMLoss', choices=['FIRMLoss', 'NTXentLoss', 'FIRMLossv2', 'NTXentLossv2', 'SupCon'],
-                        help='ContrastiveOC is the One-Class Contrastive Loss.')
+                        help='Loss functions (default: FIRMLoss).')
     parser.add_argument('--temperature', type=float, default=0.2, help='temperature for loss function')
 
     # model
@@ -50,7 +50,7 @@ def parse_option():
     parser.add_argument('--augs', type=str, default='cnr0.25+jitter_b0.4_c0.4_s0.4_h0.4_p1.0+blur_k3_s0.5_p0.75', help='Augumentations used during training')
 
     # synthetic outliers
-    parser.add_argument('--shift_transform', type=str, default='rot90 rot180 rot270', help='Transformations (rot90, rot180, rot270)')
+    parser.add_argument('--shift_transform', type=str, default='cutpastescar', help='Transformations (rot90, rot180, rot270)')
     parser.add_argument('--oe', type=str, default='', choices=['', '300k'],
                         help='path to outlier exposure dataset .npy file (300k set is from https://github.com/hendrycks/outlier-exposure)')
 

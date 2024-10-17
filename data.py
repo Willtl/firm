@@ -1,11 +1,12 @@
 import PIL.Image
 import torch
+from matplotlib import pyplot as plt
 from torch.utils.data import Dataset, DataLoader
 from torchvision import datasets
 from torchvision.transforms import Compose
 
 from transforms import *
-from util import CIFAR100Coarse, CatsVsDogsDataset, FashionMNISTRGB
+from util import CIFAR100Coarse, CatsVsDogsDataset, FashionMNISTRGB, CutPaste, CutPasteScar
 
 
 class SyntheticOutlierDataset(Dataset):
@@ -33,8 +34,11 @@ class SyntheticOutlierDataset(Dataset):
         bin_label, label = self.bin_labels[index], self.labels[index]
         return x1, x2, bin_label, label
 
-    def _expose_samples_with_labels(self, samples, labels, plot=False):
+    def _expose_samples_with_labels(self, samples, labels, plot=True):
         exposed_samples, exposed_bin_labels, exposed_labels = [], [], []
+
+        cutpaste = CutPaste(p=1.0, scale=(0.02, 0.15), ratio=(0.3, 3.3))
+        cutpastescar = CutPasteScar(p=1.0, width_range=(2, 16), height_range=(10, 25), rotation_range=(-45, 45), jitter_params=(0.1, 0.1, 0.1, 0.1))
 
         aug_functions = {
             'rot90': lambda img: img.rotate(90),
@@ -42,7 +46,9 @@ class SyntheticOutlierDataset(Dataset):
             'rot270': lambda img: img.rotate(270),
             'hflip': lambda img: img.transpose(PIL.Image.FLIP_LEFT_RIGHT),
             'mixup': lambda img: mixup(img, random.choice(samples)),
-            'scramble': lambda img: ImageTransformation.segmentScramble(img, coefficient=0.25)
+            'scramble': lambda img: ImageTransformation.segmentScramble(img, coefficient=0.25),
+            'cutpaste': lambda img: cutpaste(img),
+            'cutpastescar': lambda img: cutpastescar(img),
         }
 
         # Generate DA samples and labels
@@ -186,6 +192,9 @@ def _load_cifar10(args):
     # Create a TrainDataset instance with the preprocessed data and specified transformations
     train_dataset = SyntheticOutlierDataset(args, train_imgs, train_labels, transform=train_transform)
     train_c_dataset = TestDataset(train_imgs, train_bin_labels, train_labels, transform=test_transform)  # used for computing mean
+
+    #
+
     return train_dataset, train_c_dataset
 
 

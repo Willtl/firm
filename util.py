@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import glob
+import math
 import os
 import pickle
 import random
@@ -15,7 +16,9 @@ from PIL import Image
 from sklearn.metrics import roc_curve, auc
 from torch.optim.lr_scheduler import OneCycleLR
 from torch.utils.data import Dataset
+from torchvision import transforms
 from torchvision.datasets import ImageFolder, CIFAR100, FashionMNIST
+from torchvision.transforms import functional as F
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
@@ -286,6 +289,176 @@ class LSUN(Dataset):
 
             # Optionally delete the tar file to save space
             os.remove(tar_path)
+
+
+class CutPaste(torch.nn.Module):
+    def __init__(self, p=0.5, scale=(0.02, 0.15), ratio=(0.3, 3.3)):
+        """
+        CutPaste augmentation randomly selects a region of an image,
+        cuts it, and pastes it at another random location.
+
+        Args:
+            p (float): Probability of applying the augmentation.
+            scale (tuple of float): Range of proportion of the patch area relative to the entire image.
+            ratio (tuple of float): Range of aspect ratios for the patch.
+        """
+        super(CutPaste, self).__init__()
+        self.p = p
+        self.scale = scale
+        self.ratio = ratio
+
+    def get_params(self, img, scale, ratio):
+        """Get parameters for the CutPaste augmentation."""
+        width, height = F.get_image_size(img)
+        area = height * width
+
+        # Convert ratio to logarithmic space for aspect ratio calculation
+        log_ratio = torch.log(torch.tensor(ratio))
+
+        for _ in range(10):
+            target_area = random.uniform(*scale) * area
+            aspect_ratio = torch.exp(torch.empty(1).uniform_(log_ratio[0], log_ratio[1])).item()
+
+            h = int(round(math.sqrt(target_area * aspect_ratio)))
+            w = int(round(math.sqrt(target_area / aspect_ratio)))
+
+            if w <= width and h <= height:
+                i = random.randint(0, height - h)
+                j = random.randint(0, width - w)
+                return i, j, h, w
+
+        # Fallback to no CutPaste if we couldn't find a valid region.
+        return 0, 0, height, width
+
+    def forward(self, img):
+        """
+        Args:
+            img (PIL Image or Tensor): Input image.
+
+        Returns:
+            Augmented image.
+        """
+        if random.uniform(0, 1) > self.p:
+            return img
+
+        if isinstance(img, torch.Tensor):
+            img = F.to_pil_image(img)
+
+        # Make a copy of the image to avoid modifying the original
+        img_copy = img.copy()
+
+        # Get patch coordinates and dimensions
+        i, j, h, w = self.get_params(img_copy, self.scale, self.ratio)
+
+        # Crop the patch
+        patch = img_copy.crop((j, i, j + w, i + h))
+
+        # Get random location to paste, ensuring it's not the same location
+        paste_i, paste_j = i, j
+        while paste_i == i and paste_j == j:
+            paste_i = random.randint(0, img_copy.size[1] - h)
+            paste_j = random.randint(0, img_copy.size[0] - w)
+
+        # Paste the patch back onto the image copy
+        img_copy.paste(patch, (paste_j, paste_i))
+
+        return img_copy
+
+    def __repr__(self):
+        return self.__class__.__name__ + '(p={0}, scale={1}, ratio={2})'.format(self.p, self.scale, self.ratio)
+
+
+class CutPasteScar(torch.nn.Module):
+    def __init__(self, p=0.5, width_range=(2, 16), height_range=(10, 25), rotation_range=(-45, 45), jitter_params=(0.1, 0.1, 0.1, 0.1)):
+        
+        """
+        CutPaste-Scar augmentation randomly selects a rectangular scar-shaped region of an image,
+        cuts it, applies transformations (rotation, color jitter), and pastes it at another location.
+
+        Args:
+            p (float): Probability of applying the augmentation.
+            width_range (tuple of int): Range of width (in pixels) for the scar patch.
+            height_range (tuple of int): Range of height (in pixels) for the scar patch.
+            rotation_range (tuple of float): Range of angles (in degrees) to rotate the patch.
+            jitter_params (tuple of float): Max intensities for (brightness, contrast, saturation, hue) in color jitter.
+        """
+        super(CutPasteScar, self).__init__()
+        self.p = p
+        self.width_range = width_range
+        self.height_range = height_range
+        self.rotation_range = rotation_range
+        self.color_jitter = transforms.ColorJitter(brightness=jitter_params[0],
+                                                   contrast=jitter_params[1],
+                                                   saturation=jitter_params[2],
+                                                   hue=jitter_params[3])
+
+    def get_params(self, img):
+        """Get parameters for the CutPaste-Scar augmentation."""
+        width, height = F.get_image_size(img)
+
+        # Sample width and height for the scar (patch)
+        patch_width = random.randint(self.width_range[0], self.width_range[1])
+        patch_height = random.randint(self.height_range[0], self.height_range[1])
+
+        # Ensure the patch fits within the image
+        patch_width = min(patch_width, width)
+        patch_height = min(patch_height, height)
+
+        i = random.randint(0, height - patch_height)
+        j = random.randint(0, width - patch_width)
+
+        return i, j, patch_height, patch_width
+
+    def forward(self, img):
+        """
+        Args:
+            img (PIL Image or Tensor): Input image.
+
+        Returns:
+            Augmented image.
+        """
+        if random.uniform(0, 1) > self.p:
+            return img
+
+        if isinstance(img, torch.Tensor):
+            img = F.to_pil_image(img)
+
+        # Make a copy of the image to avoid modifying the original
+        img_copy = img.copy()
+
+        # Get patch coordinates and dimensions
+        i, j, h, w = self.get_params(img_copy)
+
+        # Crop the patch (the "scar")
+        patch = img_copy.crop((j, i, j + w, i + h))
+
+        # Apply color jitter to the patch
+        patch = self.color_jitter(patch)
+
+        # Create a mask of the patch (for proper pasting after rotation)
+        mask = Image.new('L', patch.size, 255)
+
+        # Random rotation within the specified range
+        angle = random.uniform(self.rotation_range[0], self.rotation_range[1])
+        patch = patch.rotate(angle, resample=Image.BILINEAR, expand=True)
+        mask = mask.rotate(angle, resample=Image.BILINEAR, expand=True)
+
+        # Ensure that we get new dimensions for the rotated patch
+        rotated_w, rotated_h = patch.size
+
+        # Get random location to paste, ensuring it fits within the image dimensions after rotation
+        paste_i = random.randint(0, img_copy.size[1] - rotated_h)
+        paste_j = random.randint(0, img_copy.size[0] - rotated_w)
+
+        # Paste the rotated patch onto the image copy using the mask to avoid black borders
+        img_copy.paste(patch, (paste_j, paste_i), mask)
+
+        return img_copy
+
+    def __repr__(self):
+        return (self.__class__.__name__ +
+                '(p={0}, width_range={1}, height_range={2}, rotation_range={3}, jitter_params={4})'
+                .format(self.p, self.width_range, self.height_range, self.rotation_range, self.color_jitter))
 
 
 def set_reproducible(reproducible, seed):
