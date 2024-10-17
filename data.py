@@ -6,7 +6,7 @@ from torchvision import datasets
 from torchvision.transforms import Compose
 
 from transforms import *
-from util import CIFAR100Coarse, CatsVsDogsDataset, FashionMNISTRGB, CutPaste, CutPasteScar
+from util import CIFAR100Coarse, CatsVsDogsDataset, FashionMNISTRGB, MVTecAD, CutPaste, CutPasteScar
 
 
 class SyntheticOutlierDataset(Dataset):
@@ -16,13 +16,39 @@ class SyntheticOutlierDataset(Dataset):
 
     def __init__(self, args, samples, labels, transform):
         self.args = args
-        self.transform = transform
+        # Define trasnforms
         self.shift_transform = args.shift_transform
+        self.transform = transform
+        self.transform_cutpaste = CutPaste(p=1.0, scale=(0.02, 0.15), ratio=(0.3, 3.3))  # mvtec
+        self.transform_cutpaste_scar = CutPasteScar(p=1.0, width_range=(2, 16), height_range=(10, 25), rotation_range=(-45, 45), jitter_params=(0.1, 0.1, 0.1, 0.1))  # mvtec
+
+        # Generate synthetic outliers
         self.samples, self.bin_labels, self.labels = self._expose_samples_with_labels(samples, labels)
         self.oe = self._load_oe(args.oe)  # only when arguments is true for outlier exposure
         self.current_oes = list(range(len(self.oe))) if self.oe is not None else []  # this can be updated during training
 
     def __getitem__(self, index):
+        if self.args.dataset == 'mvtec':
+            # Get the sample and its cut-paste variations
+            sample = self.samples[index]
+            sample_cp = self.transform_cutpaste(sample)
+            sample_cps = self.transform_cutpaste_scar(sample)
+
+            # Generate two views for each sample
+            view1_sample, view2_sample = self.transform(sample), self.transform(sample)
+            view1_cp, view2_cp = self.transform(sample_cp), self.transform(sample_cp)
+            view1_cps, view2_cps = self.transform(sample_cps), self.transform(sample_cps)
+
+            # Combine views into lists
+            view1 = [view1_sample, view1_cp, view1_cps]
+            view2 = [view2_sample, view2_cp, view2_cps]
+
+            # Assign bin_labels and labels for each view
+            bin_labels = [1, -1, -1]  # 1 for sample, -1 for sample_cp and sample_cps
+            labels = [0, 1, 2]  # 0 for sample, 1 for sample_cp, 2 for sample_cps
+
+            return view1, view2, bin_labels, labels
+
         # In case sample[index] is a non-inlier, and OEs is being use, return oe instead
         if self.oe is not None and self.bin_labels[index] != 1:
             oe_index = random.choice(self.current_oes)
@@ -34,7 +60,10 @@ class SyntheticOutlierDataset(Dataset):
         bin_label, label = self.bin_labels[index], self.labels[index]
         return x1, x2, bin_label, label
 
-    def _expose_samples_with_labels(self, samples, labels, plot=True):
+    def _expose_samples_with_labels(self, samples, labels, plot=False):
+        if self.args.dataset == 'mvtec' and self.args.shift_transform:
+            raise ValueError('Do not specify shift_transform for mvtec (cutpaste/scar is applied within minibatch)')
+
         exposed_samples, exposed_bin_labels, exposed_labels = [], [], []
 
         cutpaste = CutPaste(p=1.0, scale=(0.02, 0.15), ratio=(0.3, 3.3))
@@ -174,6 +203,8 @@ def _load_dataset(dataset_name, args):
         return _load_fmnist(args)
     elif dataset_name == 'cats-vs-dogs':
         return _load_cat_vs_dogs(args)
+    elif dataset_name == 'mvtec':
+        return _load_mvtec(args)
     else:
         raise ValueError(dataset_name)
 
@@ -192,8 +223,6 @@ def _load_cifar10(args):
     # Create a TrainDataset instance with the preprocessed data and specified transformations
     train_dataset = SyntheticOutlierDataset(args, train_imgs, train_labels, transform=train_transform)
     train_c_dataset = TestDataset(train_imgs, train_bin_labels, train_labels, transform=test_transform)  # used for computing mean
-
-    #
 
     return train_dataset, train_c_dataset
 
@@ -267,6 +296,29 @@ def _load_cat_vs_dogs(args):
     # Create a TrainDataset instance with the preprocessed data and specified transformations
     train_dataset = SyntheticOutlierDataset(args, train_imgs, train_labels, transform=train_transform)
     train_c_dataset = TestDataset(train_imgs, train_bin_labels, train_labels, transform=test_transform)  # used for computing mean
+    return train_dataset, train_c_dataset
+
+
+def _load_mvtec(args, size=256):
+    # Compose the train transform
+    train_transform, test_transform = get_transform(args, size=size)
+
+    # Load the MVTecAD dataset
+    train_dataset = MVTecAD(root=args.data_folder, subset_name=args.normal_class, train=True, download=True)
+    _ = MVTecAD(root=args.data_folder, train=False, subset_name=args.normal_class, download=True)
+
+    train_imgs, train_labels = train_dataset.data, np.array(train_dataset.targets)
+    train_bin_labels = np.ones(train_labels.shape)
+
+    # Resize images to the target size
+    resize = transforms.Resize(size=size, interpolation=InterpolationMode.BICUBIC)
+    resized_imgs = [resize(transforms.ToPILImage()(img)) if isinstance(img, torch.Tensor) else resize(img) for img in train_imgs]
+    train_imgs = resized_imgs
+
+    # Create a TrainDataset instance with the preprocessed data and specified transformations
+    train_dataset = SyntheticOutlierDataset(args, train_imgs, train_labels, transform=train_transform)
+    train_c_dataset = TestDataset(train_imgs, train_bin_labels, train_labels, transform=test_transform)  # used for computing mean
+
     return train_dataset, train_c_dataset
 
 

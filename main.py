@@ -22,7 +22,7 @@ def parse_option():
     parser.add_argument('--workers', type=int, default=16, help='num of workers to use (default: 0)')
     parser.add_argument('--epochs', type=int, default=2000, help='number of training epochs (default: 2000)')
     parser.add_argument('--steps_per_epoch', type=int, default=None, help='number of steps per epoch (default: none)')
-    parser.add_argument('--batch_size', type=int, default=32, help='batch size (default: 32)')
+    parser.add_argument('--batch_size', type=int, default=8, help='batch size (default: 32)')
 
     # optimization
     parser.add_argument('--opt', type=str, default='SGD', choices=['SGD', 'AdamW', 'RMSprop'], help='optimizers')
@@ -39,18 +39,20 @@ def parse_option():
     parser.add_argument('--model', type=str, default='resnet18', choices=['squeezenet', 'mobilenetv2', 'resnet18', 'resnet18zoo'])
 
     # dataset
-    parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100', 'fmnist', 'cats-vs-dogs', 'cifar10w'], help='dataset')
+    parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100', 'fmnist', 'cats-vs-dogs',
+                                                                         'cifar10w', 'mvtec'], help='dataset')
     parser.add_argument('--data_folder', type=str, default=None, help='path to custom dataset')
 
     # anomaly detection setting
-    parser.add_argument('--normal_class', type=int, default=3, help='normal class on the dataset')
+    parser.add_argument('--normal_class', type=str, default='0', help='normal class on the dataset (can be int or str)')
     parser.add_argument('--gamma', type=float, default=0.0, help='The fraction of labeled abnormal samples present in the training set.')
 
     # augmentation
     parser.add_argument('--augs', type=str, default='cnr0.25+jitter_b0.4_c0.4_s0.4_h0.4_p1.0+blur_k3_s0.5_p0.75', help='Augumentations used during training')
 
     # synthetic outliers
-    parser.add_argument('--shift_transform', type=str, default='cutpastescar', help='Transformations (rot90, rot180, rot270)')
+    parser.add_argument('--shift_transform', type=str, default='', help='Transformations (rot90, rot180, rot270)',
+                        choices=['rot90', 'rot180', 'rot270', 'cutpaste', 'cutpastescar'])
     parser.add_argument('--oe', type=str, default='', choices=['', '300k'],
                         help='path to outlier exposure dataset .npy file (300k set is from https://github.com/hendrycks/outlier-exposure)')
 
@@ -73,6 +75,13 @@ def parse_option():
     # Check if dataset is path that passed required arguments
     if args.dataset == 'path':
         assert args.data_folder is not None and args.mean is not None and args.std is not None
+
+    # Convert normal_class to int if it's a digit, otherwise leave it as a string
+    if args.normal_class.isdigit():
+        args.normal_class = int(args.normal_class)
+
+    if args.dataset == 'mvtec' and isinstance(args.normal_class, int):
+        raise ValueError('normal_class argument should be a string (name of the mvtec subset)')
 
     # Set the path according to the environment
     if args.data_folder is None:

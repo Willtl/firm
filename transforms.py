@@ -70,6 +70,9 @@ def get_transform(args, size=32):
     elif args.dataset == 'cats-vs-dogs':
         mean = (0.4899, 0.4546, 0.4161)
         std = (0.2204, 0.2158, 0.2156)
+    elif args.dataset == 'mvtec':
+        mean = (0.485, 0.456, 0.406)  # ImageNet mean and std
+        std = (0.229, 0.224, 0.225)
     elif args.dataset == 'path':
         mean = eval(args.mean)
         std = eval(args.std)

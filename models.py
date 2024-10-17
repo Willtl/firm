@@ -47,6 +47,13 @@ class SimCLR(nn.Module):
                 if step_count >= total_steps:
                     break  # Stop the loop once we reach the desired number of steps
 
+                # If dealing with 'mvtec', we expect view1 and view2 to be lists
+                if self.args.dataset == 'mvtec':
+                    # Concatenate views for mvtec samples (stack the lists into a single batch)
+                    view1 = torch.cat(view1, dim=0)
+                    view2 = torch.cat(view2, dim=0)
+                    bin_labels = torch.cat([b.unsqueeze(0) if not isinstance(b, torch.Tensor) else b for b in bin_labels], dim=0)
+
                 # Prepare views
                 view1 = view1.to(self.args.device, non_blocking=True)
                 view2 = view2.to(self.args.device, non_blocking=True)
