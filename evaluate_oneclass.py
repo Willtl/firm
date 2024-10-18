@@ -15,7 +15,7 @@ from torchvision import datasets, transforms
 from torchvision.transforms import functional as TF
 from torchvision.transforms.functional import InterpolationMode
 
-from data import TestDataset, to_anomaly_dataset
+from data import TestDataset, to_anomaly_dataset, to_anomaly_mvtec_dataset
 from models import get_encoder
 from util import roc, CIFAR100Coarse, CatsVsDogsDataset, FashionMNISTRGB, MVTecAD
 
@@ -105,7 +105,6 @@ def get_transform(mean, std, size, zoom_factor=1.125):
     ])
     return std_transform, crop_transform
 
-
 def get_loader(args, size=32, zoom_factor=1.125):
     # construct data loader
     if args.dataset == 'cifar10':
@@ -124,8 +123,7 @@ def get_loader(args, size=32, zoom_factor=1.125):
     elif args.dataset == 'mvtec':
         mean = (0.485, 0.456, 0.406)
         std = (0.229, 0.224, 0.225)
-        # size = 256
-        size = 32
+        size = 256
         zoom_factor = 1
     elif args.dataset == 'path':
         mean = eval(args.mean)
@@ -145,46 +143,16 @@ def get_loader(args, size=32, zoom_factor=1.125):
     elif args.dataset == 'cats-vs-dogs':
         train_dataset = CatsVsDogsDataset(root=args.data_folder, train=True)
         valid_dataset = CatsVsDogsDataset(root=args.data_folder, train=False)
+
     elif args.dataset == 'mvtec':
         train_dataset = MVTecAD(root=args.data_folder, subset_name=args.normal_class, train=True)
         valid_dataset = MVTecAD(root=args.data_folder, subset_name=args.normal_class, train=False)
 
-        # Resize transformation
-        resize = transforms.Resize(size=size, interpolation=InterpolationMode.BILINEAR)
+        # Preprocess train val dataset
+        train_imgs, train_bin_labels, train_labels = to_anomaly_mvtec_dataset(train_dataset, normal_class=train_dataset.class_to_idx['good'], gamma=0.0, size=size)
+        valid_imgs, valid_bin_labels, valid_labels = to_anomaly_mvtec_dataset(valid_dataset, normal_class=valid_dataset.class_to_idx['good'], gamma=1.0, size=size)
 
-        # Preprocess Train set
-        gamma = 0.0
-        train_imgs = [resize(transforms.ToPILImage()(img)) if isinstance(img, torch.Tensor) else resize(img) for img in train_dataset.data]
-        train_labels = np.array(train_dataset.targets)
-        train_bin_labels = np.ones(train_labels.shape)
-
-        # Preprocess Validation set
-        gamma = 1.0
-        normal_class_index = valid_dataset.class_to_idx['good']
-
-        # Extract data and labels
-        imgs = valid_dataset.data
-        labels = np.array(valid_dataset.targets)
-
-        # Determine indices for normal and abnormal samples
-        normal_idx = np.where(labels == normal_class_index)[0]
-        abnormal_idx = np.where(labels != normal_class_index)[0]
-
-        # Select a fraction of anomalies based on gamma
-        if gamma < 1.0:
-            selected_abnormal_idx = np.random.choice(abnormal_idx, int(len(abnormal_idx) * gamma), replace=False)
-        else:
-            selected_abnormal_idx = abnormal_idx
-
-        # Concatenate indices and sort them (if maintaining order is required)
-        final_indices = np.sort(np.concatenate((normal_idx, selected_abnormal_idx)))
-
-        # Process images and assign labels
-        valid_imgs = [transforms.ToPILImage()(imgs[idx]) if isinstance(imgs[idx], torch.Tensor) else resize(imgs[idx]) for idx in final_indices]
-        valid_labels = labels[final_indices]
-        valid_bin_labels = np.where(valid_labels == normal_class_index, 1, -1)  # 1 for normal, -1 for anomalies
-
-    # Preprocess train AD dataset
+    # Preprocess train val dataset
     if args.dataset != 'mvtec':
         train_imgs, train_bin_labels, train_labels = to_anomaly_dataset(train_dataset, normal_class=args.normal_class, gamma=0.0)
         valid_imgs, valid_bin_labels, valid_labels = to_anomaly_dataset(valid_dataset, normal_class=args.normal_class, gamma=1.0)

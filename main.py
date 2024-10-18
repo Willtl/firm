@@ -18,7 +18,7 @@ from util import save_model
 def parse_option():
     parser = argparse.ArgumentParser('argument for training')
 
-    parser.add_argument('--save_freq', type=int, default=10, help='save frequency (default: 10)')
+    parser.add_argument('--save_freq', type=int, default=2, help='save frequency (default: 10)')
     parser.add_argument('--workers', type=int, default=16, help='num of workers to use (default: 0)')
     parser.add_argument('--epochs', type=int, default=2000, help='number of training epochs (default: 2000)')
     parser.add_argument('--steps_per_epoch', type=int, default=None, help='number of steps per epoch (default: none)')
