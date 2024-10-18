@@ -40,7 +40,7 @@ def parse_option():
 
     # dataset
     parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100', 'fmnist', 'cats-vs-dogs',
-                                                                         'cifar10w', 'mvtec'], help='dataset')
+                                                                           'cifar10w', 'mvtec'], help='dataset')
     parser.add_argument('--data_folder', type=str, default=None, help='path to custom dataset')
 
     # anomaly detection setting

@@ -87,6 +87,10 @@ def get_transform(args, size=32):
             aug_list.append(transforms.RandomResizedCrop(size=size, scale=(cnr_val, 1.0), ratio=(1., 1.), interpolation=InterpolationMode.BILINEAR))
         elif aug == "hflip":
             aug_list.append(transforms.RandomHorizontalFlip())
+        elif aug == "vflip":
+            aug_list.append(transforms.RandomVerticalFlip())
+        elif aug == "affine":
+            aug_list.append(transforms.RandomAffine(degrees=0, translate=(0.1, 0.1), interpolation=InterpolationMode.BILINEAR))
         elif aug.startswith("jitter"):
             jitter_args = aug.split("_")[1:]
             jitter_args = [float(param[1:]) for param in jitter_args]
@@ -100,8 +104,10 @@ def get_transform(args, size=32):
             blur_s_val = float(aug.split("_s")[1].split("_")[0])
             blur_p_val = float(aug.split("_p")[1])
             aug_list.append(transforms.RandomApply([transforms.GaussianBlur(kernel_size=blur_k_val, sigma=(0.1, 2.0))], p=blur_p_val))
+
     aug_list.append(transforms.ToTensor())
     aug_list.append(transforms.Normalize(mean=mean, std=std))
+
     train_transform = transforms.Compose(aug_list)
     args.verbose and print(train_transform)
 

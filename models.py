@@ -53,11 +53,13 @@ class SimCLR(nn.Module):
                     view1 = torch.cat(view1, dim=0)
                     view2 = torch.cat(view2, dim=0)
                     bin_labels = torch.cat([b.unsqueeze(0) if not isinstance(b, torch.Tensor) else b for b in bin_labels], dim=0)
+                    labels = torch.cat([b.unsqueeze(0) if not isinstance(b, torch.Tensor) else b for b in labels], dim=0)
 
                 # Prepare views
                 view1 = view1.to(self.args.device, non_blocking=True)
                 view2 = view2.to(self.args.device, non_blocking=True)
                 bin_labels = bin_labels.to(self.args.device, non_blocking=True)
+                labels = labels.to(self.args.device, non_blocking=True)
 
                 # Prepare combined instances and feedforward
                 combined_views = torch.cat([view1, view2], dim=0)
@@ -72,7 +74,7 @@ class SimCLR(nn.Module):
                 elif self.args.loss in ['SupCon']:
                     feat_supcon = torch.stack([feat1, feat2], dim=1)
                     bin_labels = (bin_labels + 1) // 2
-                    loss = self.criterion(feat_supcon, bin_labels)  # for binary scenario feed `bin_labels`, multiclass feed `labels`
+                    loss = self.criterion(feat_supcon, labels)  # for binary scenario feed `bin_labels`, multiclass feed `labels`
 
                 meters['con loss'].update(loss.item(), feat1.shape[0])
 

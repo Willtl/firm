@@ -20,7 +20,8 @@ class SyntheticOutlierDataset(Dataset):
         self.shift_transform = args.shift_transform
         self.transform = transform
         self.transform_cutpaste = CutPaste(p=1.0, scale=(0.02, 0.15), ratio=(0.3, 3.3))  # mvtec
-        self.transform_cutpaste_scar = CutPasteScar(p=1.0, width_range=(2, 16), height_range=(10, 25), rotation_range=(-45, 45), jitter_params=(0.1, 0.1, 0.1, 0.1))  # mvtec
+        self.transform_cutpaste_scar = CutPasteScar(p=1.0, width_range=(2, 16), height_range=(10, 25),
+                                                    rotation_range=(-45, 45), jitter_params=(0.4, 0.4, 0.4, 0.4))  # mvtec
 
         # Generate synthetic outliers
         self.samples, self.bin_labels, self.labels = self._expose_samples_with_labels(samples, labels)
@@ -311,7 +312,7 @@ def _load_mvtec(args, size=256):
     train_bin_labels = np.ones(train_labels.shape)
 
     # Resize images to the target size
-    resize = transforms.Resize(size=size, interpolation=InterpolationMode.BICUBIC)
+    resize = transforms.Resize(size=size, interpolation=InterpolationMode.BILINEAR)
     resized_imgs = [resize(transforms.ToPILImage()(img)) if isinstance(img, torch.Tensor) else resize(img) for img in train_imgs]
     train_imgs = resized_imgs
 
