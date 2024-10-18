@@ -374,6 +374,45 @@ def to_anomaly_dataset(dataset, normal_class: int = 0, gamma: float = 0.0, pollu
     return pil_imgs, bin_labels, labels
 
 
+def to_anomaly_mvtec_dataset(dataset, normal_class, gamma, size):
+    # TODO: logic is same as to_anomaly_dataset apart from resizing, keeping them separate for now to avoid further changes before confirming
+    imgs = dataset.data
+    labels = np.array(dataset.targets)
+
+    # Define the resize transformation
+    resize = transforms.Resize(size=size, interpolation=transforms.InterpolationMode.BICUBIC)
+
+    # Create a function to apply the transformations directly
+    def transform_to_pil(img):
+        return resize(transforms.ToPILImage()(img) if isinstance(img, torch.Tensor) else resize(img))
+
+    # Identifying indices for normal and abnormal samples
+    normal_idx = np.where(labels == normal_class)[0]
+    abnormal_idx = np.where(labels != normal_class)[0]
+
+    # Processing images for normal samples
+    normal_imgs = [transform_to_pil(imgs[i]) for i in normal_idx]
+    normal_bin_labels = np.ones(len(normal_idx))
+
+    # Handling anomalies based on gamma
+    if gamma > 0 and len(abnormal_idx) > 0:
+        num_anom_samples = int(len(abnormal_idx) * gamma)
+        selected_abnormal_idx = np.random.choice(abnormal_idx, num_anom_samples, replace=False)
+        abnormal_imgs = [transform_to_pil(imgs[i]) for i in selected_abnormal_idx]
+        abnormal_bin_labels = -np.ones(num_anom_samples)
+    else:
+        selected_abnormal_idx = []
+        abnormal_imgs = []
+        abnormal_bin_labels = np.array([])
+
+    # Combine normal and selected anomaly samples
+    imgs_combined = normal_imgs + abnormal_imgs
+    labels_combined = np.concatenate((labels[normal_idx], labels[selected_abnormal_idx] if gamma > 0 else []))
+    bin_labels_combined = np.concatenate((normal_bin_labels, abnormal_bin_labels))
+
+    return imgs_combined, bin_labels_combined, labels_combined
+
+
 def to_unlabeled_dataset(dataset, in_distribution=True):
     # Get images directly from the dataset
     imgs = dataset.data
