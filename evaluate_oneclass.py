@@ -17,7 +17,7 @@ from torchvision.transforms.functional import InterpolationMode
 
 from data import TestDataset, to_anomaly_dataset
 from models import get_encoder
-from util import roc, CIFAR100Coarse, CatsVsDogsDataset, FashionMNISTRGB
+from util import roc, CIFAR100Coarse, CatsVsDogsDataset, FashionMNISTRGB, MVTecAD
 
 try:
     import apex
@@ -34,8 +34,8 @@ def parse_option():
     parser.add_argument('--eval_metrics', type=str, nargs='+', default=['cos_1', 'cos_5', 'cos_1_norm', 'cos_5_norm', 'kde', 'center'], help='evaluation metrics')
 
     parser.add_argument('--path', type=str, default='', help='path to pre-trained model')
-    parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100', 'fmnist', 'cats-vs-dogs'], help='dataset')
-    parser.add_argument('--normal_class', type=int, default=0, help='normal class on the dataset')
+    parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100', 'fmnist', 'cats-vs-dogs', 'mvtec'], help='dataset')
+    parser.add_argument('--normal_class', type=str, default='0', help='normal class on the dataset')
     parser.add_argument('--model', type=str, default='resnet18', choices=['squeezenet', 'mobilenetv2', 'resnet18', 'resnet18zoo'])
     parser.add_argument('--ensemble', type=int, default=1, help='number of crops used for score ensemble')
 
@@ -45,6 +45,13 @@ def parse_option():
     parser.add_argument('--gpu', type=int, default=0, help='GPU ID to use')
 
     args = parser.parse_args()
+
+    # Convert normal_class to int if it's a digit, otherwise leave it as a string
+    if args.normal_class.isdigit():
+        args.normal_class = int(args.normal_class)
+
+    if args.dataset == 'mvtec' and isinstance(args.normal_class, int):
+        raise ValueError('normal_class argument should be a string (name of the mvtec subset)')
 
     # Define the valid metrics
     valid_metrics = ['locsvm', 'ocsvm', 'kde', 'cos_1', 'cos_1_norm', 'cos_5', 'cos_5_norm', 'center']
@@ -80,8 +87,8 @@ def parse_option():
     return args
 
 
-def get_transform(mean, std, size):
-    zoom = int(size * 1.125)
+def get_transform(mean, std, size, zoom_factor=1.125):
+    zoom = int(size * zoom_factor)
     std_transform = transforms.Compose([
         transforms.Resize(size=zoom, interpolation=InterpolationMode.BILINEAR),
         transforms.CenterCrop(size),
@@ -99,7 +106,7 @@ def get_transform(mean, std, size):
     return std_transform, crop_transform
 
 
-def get_loader(args, size=32):
+def get_loader(args, size=32, zoom_factor=1.125):
     # construct data loader
     if args.dataset == 'cifar10':
         mean = (0.4914, 0.4822, 0.4465)
@@ -114,11 +121,16 @@ def get_loader(args, size=32):
         mean = (0.4872, 0.4545, 0.4164)
         std = (0.2213, 0.2161, 0.2164)
         size = 64
+    elif args.dataset == 'mvtec':
+        mean = (0.485, 0.456, 0.406)
+        std = (0.229, 0.224, 0.225)
+        size = 256
+        zoom_factor = 1
     elif args.dataset == 'path':
         mean = eval(args.mean)
         std = eval(args.std)
 
-    std_transform, crop_transform = get_transform(mean, std, size)
+    std_transform, crop_transform = get_transform(mean, std, size, zoom_factor)
 
     if args.dataset == 'cifar10':
         train_dataset = datasets.CIFAR10(root=args.data_folder, train=True, download=False)
@@ -132,10 +144,29 @@ def get_loader(args, size=32):
     elif args.dataset == 'cats-vs-dogs':
         train_dataset = CatsVsDogsDataset(root=args.data_folder, train=True)
         valid_dataset = CatsVsDogsDataset(root=args.data_folder, train=False)
+    elif args.dataset == 'mvtec':
+        train_dataset = MVTecAD(root=args.data_folder, subset_name=args.normal_class, train=True)
+        valid_dataset = MVTecAD(root=args.data_folder, subset_name=args.normal_class, train=False)
+
+        # Resize transformation
+        resize = transforms.Resize(size=size, interpolation=InterpolationMode.BICUBIC)
+
+        # Preprocess Mvtec AD train set
+        train_imgs = [resize(transforms.ToPILImage()(img)) if isinstance(img, torch.Tensor) else resize(img) for img in train_dataset.data]
+        train_labels = np.array(train_dataset.targets)
+        train_bin_labels = np.ones(train_labels.shape)
+
+        # Preprocess Mvtec AD validation set
+        valid_imgs = [resize(transforms.ToPILImage()(img)) if isinstance(img, torch.Tensor) else resize(img) for img in valid_dataset.data]
+        valid_labels = np.array(valid_dataset.targets)
+        valid_bin_labels = np.ones(valid_labels.shape) * -1
+
+        # TODO: incorporate gamma
 
     # Preprocess train AD dataset
-    train_imgs, train_bin_labels, train_labels = to_anomaly_dataset(train_dataset, normal_class=args.normal_class, gamma=0.0)
-    valid_imgs, valid_bin_labels, valid_labels = to_anomaly_dataset(valid_dataset, normal_class=args.normal_class, gamma=1.0)
+    if args.dataset != 'mvtec':
+        train_imgs, train_bin_labels, train_labels = to_anomaly_dataset(train_dataset, normal_class=args.normal_class, gamma=0.0)
+        valid_imgs, valid_bin_labels, valid_labels = to_anomaly_dataset(valid_dataset, normal_class=args.normal_class, gamma=1.0)
 
     train_dataset = TestDataset(train_imgs, train_bin_labels, train_labels, transform=std_transform)
     if args.ensemble > 1:
