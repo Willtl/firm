@@ -124,7 +124,8 @@ def get_loader(args, size=32, zoom_factor=1.125):
     elif args.dataset == 'mvtec':
         mean = (0.485, 0.456, 0.406)
         std = (0.229, 0.224, 0.225)
-        size = 256
+        # size = 256
+        size = 32
         zoom_factor = 1
     elif args.dataset == 'path':
         mean = eval(args.mean)
@@ -151,22 +152,43 @@ def get_loader(args, size=32, zoom_factor=1.125):
         # Resize transformation
         resize = transforms.Resize(size=size, interpolation=InterpolationMode.BICUBIC)
 
-        # Preprocess Mvtec AD train set
+        # Preprocess Train set
+        gamma = 0.0
         train_imgs = [resize(transforms.ToPILImage()(img)) if isinstance(img, torch.Tensor) else resize(img) for img in train_dataset.data]
         train_labels = np.array(train_dataset.targets)
         train_bin_labels = np.ones(train_labels.shape)
 
-        # Preprocess Mvtec AD validation set
-        valid_imgs = [resize(transforms.ToPILImage()(img)) if isinstance(img, torch.Tensor) else resize(img) for img in valid_dataset.data]
-        valid_labels = np.array(valid_dataset.targets)
-        valid_bin_labels = np.ones(valid_labels.shape) * -1
+        # Preprocess Validation set
+        gamma = 1.0
+        normal_class_index = valid_dataset.class_to_idx['good']
 
-        # TODO: incorporate gamma
+        # Extract data and labels
+        imgs = valid_dataset.data
+        labels = np.array(valid_dataset.targets)
+
+        # Determine indices for normal and abnormal samples
+        normal_idx = np.where(labels == normal_class_index)[0]
+        abnormal_idx = np.where(labels != normal_class_index)[0]
+
+        # Select a fraction of anomalies based on gamma
+        if gamma < 1.0:
+            selected_abnormal_idx = np.random.choice(abnormal_idx, int(len(abnormal_idx) * gamma), replace=False)
+        else:
+            selected_abnormal_idx = abnormal_idx
+
+        # Concatenate indices and sort them (if maintaining order is required)
+        final_indices = np.sort(np.concatenate((normal_idx, selected_abnormal_idx)))
+
+        # Process images and assign labels
+        valid_imgs = [transform_to_pil(imgs[idx]) if isinstance(imgs[idx], torch.Tensor) else resize(imgs[idx]) for idx in final_indices]
+        valid_labels = labels[final_indices]
+        valid_bin_labels = np.where(valid_labels == normal_class_index, 1, -1)  # 1 for normal, -1 for anomalies
 
     # Preprocess train AD dataset
     if args.dataset != 'mvtec':
         train_imgs, train_bin_labels, train_labels = to_anomaly_dataset(train_dataset, normal_class=args.normal_class, gamma=0.0)
         valid_imgs, valid_bin_labels, valid_labels = to_anomaly_dataset(valid_dataset, normal_class=args.normal_class, gamma=1.0)
+
 
     train_dataset = TestDataset(train_imgs, train_bin_labels, train_labels, transform=std_transform)
     if args.ensemble > 1:
@@ -295,6 +317,8 @@ def extract_and_normalize_features(args, model, loader, angles=[0, 90, 180, 270]
     # Extract features including handling for different angles
     all_features, labels = extract_features(args, model, loader, angles, num_crops=num_crops)
 
+    print("labels: ", labels)
+
     # Normalizing features along the feature dimension
     # The normalization needs to be done for each angle separately
     normalized_features = torch.nn.functional.normalize(all_features, dim=-1)
@@ -347,6 +371,8 @@ def eval_embed(args, model, train_loader, val_loader):
     # Extract and normalize features for both training and validation datasets
     train_feat, train_norm, _ = extract_and_normalize_features(args, model, train_loader, angles, num_crops=1)
     val_feat, val_norm, y_test = extract_and_normalize_features(args, model, val_loader, angles, num_crops=args.ensemble)
+
+    print("y_test: ", y_test)
 
     results = {}
     # Evaluate metrics for each key in evaluation metrics
@@ -442,6 +468,7 @@ def main():
         cudnn.benchmark = True
 
     # preview_rep(val_loader, model)
+    print("CALLING EVAL EMBED")
     eval_embed(args, model, train_loader, val_loader)
 
 
