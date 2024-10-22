@@ -31,12 +31,16 @@ def parse_option():
     parser.add_argument('--test_epoch', type=int, default=2000, help='saved model epoch to be loaded for testing')
     parser.add_argument('--batch_size', type=int, default=200, help='batch_size')
     parser.add_argument('--num_workers', type=int, default=0, help='num of workers to use')
-    parser.add_argument('--eval_metrics', type=str, nargs='+', default=['cos_1', 'cos_5', 'cos_1_norm', 'cos_5_norm', 'kde', 'center'], help='evaluation metrics')
+    parser.add_argument('--eval_metrics', type=str, nargs='+',
+                        default=['cos_1', 'cos_5', 'cos_1_norm', 'cos_5_norm', 'kde', 'center'],
+                        help='evaluation metrics')
 
     parser.add_argument('--path', type=str, default='', help='path to pre-trained model')
-    parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100', 'fmnist', 'cats-vs-dogs', 'mvtec'], help='dataset')
+    parser.add_argument('--dataset', type=str, default='cifar10',
+                        choices=['cifar10', 'cifar100', 'fmnist', 'cats-vs-dogs', 'mvtec'], help='dataset')
     parser.add_argument('--normal_class', type=str, default='0', help='normal class on the dataset')
-    parser.add_argument('--model', type=str, default='resnet18', choices=['squeezenet', 'mobilenetv2', 'resnet18', 'resnet18zoo'])
+    parser.add_argument('--model', type=str, default='resnet18',
+                        choices=['squeezenet', 'mobilenetv2', 'resnet18', 'resnet18zoo'])
     parser.add_argument('--ensemble', type=int, default=1, help='number of crops used for score ensemble')
 
     parser.add_argument('--verbose', action='store_true', help='Enable verbose output')
@@ -99,11 +103,13 @@ def get_transform(mean, std, size, zoom_factor=1.125):
     crop_transform = transforms.Compose([
         transforms.Resize(size=zoom, interpolation=InterpolationMode.BILINEAR),
         transforms.CenterCrop(size),
-        transforms.RandomResizedCrop(size=size, scale=(0.55, 1.0), ratio=(1., 1.), interpolation=InterpolationMode.BILINEAR),
+        transforms.RandomResizedCrop(size=size, scale=(0.55, 1.0), ratio=(1., 1.),
+                                     interpolation=InterpolationMode.BILINEAR),
         transforms.ToTensor(),
         transforms.Normalize(mean=mean, std=std)
     ])
     return std_transform, crop_transform
+
 
 def get_loader(args, size=32, zoom_factor=1.125):
     # construct data loader
@@ -149,22 +155,31 @@ def get_loader(args, size=32, zoom_factor=1.125):
         valid_dataset = MVTecAD(root=args.data_folder, subset_name=args.normal_class, train=False)
 
         # Preprocess train val dataset
-        train_imgs, train_bin_labels, train_labels = to_anomaly_mvtec_dataset(train_dataset, normal_class=train_dataset.class_to_idx['good'], gamma=0.0, size=size)
-        valid_imgs, valid_bin_labels, valid_labels = to_anomaly_mvtec_dataset(valid_dataset, normal_class=valid_dataset.class_to_idx['good'], gamma=1.0, size=size)
+        train_imgs, train_bin_labels, train_labels = to_anomaly_mvtec_dataset(train_dataset,
+                                                                              normal_class=train_dataset.class_to_idx[
+                                                                                  'good'], gamma=0.0, size=size)
+        valid_imgs, valid_bin_labels, valid_labels = to_anomaly_mvtec_dataset(valid_dataset,
+                                                                              normal_class=valid_dataset.class_to_idx[
+                                                                                  'good'], gamma=1.0, size=size)
 
     # Preprocess train val dataset
     if args.dataset != 'mvtec':
-        train_imgs, train_bin_labels, train_labels = to_anomaly_dataset(train_dataset, normal_class=args.normal_class, gamma=0.0)
-        valid_imgs, valid_bin_labels, valid_labels = to_anomaly_dataset(valid_dataset, normal_class=args.normal_class, gamma=1.0)
+        train_imgs, train_bin_labels, train_labels = to_anomaly_dataset(train_dataset, normal_class=args.normal_class,
+                                                                        gamma=0.0)
+        valid_imgs, valid_bin_labels, valid_labels = to_anomaly_dataset(valid_dataset, normal_class=args.normal_class,
+                                                                        gamma=1.0)
 
     train_dataset = TestDataset(train_imgs, train_bin_labels, train_labels, transform=std_transform)
     if args.ensemble > 1:
-        valid_dataset = TestDataset(valid_imgs, valid_bin_labels, valid_labels, transform=crop_transform, num_crops=args.ensemble)
+        valid_dataset = TestDataset(valid_imgs, valid_bin_labels, valid_labels, transform=crop_transform,
+                                    num_crops=args.ensemble)
     else:
         valid_dataset = TestDataset(valid_imgs, valid_bin_labels, valid_labels, transform=std_transform)
 
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True, drop_last=False)
-    valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True, drop_last=False)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False,
+                                               num_workers=args.num_workers, pin_memory=True, drop_last=False)
+    valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=False,
+                                               num_workers=args.num_workers, pin_memory=True, drop_last=False)
 
     return train_loader, valid_loader
 
@@ -260,17 +275,20 @@ def extract_features(args, model, loader, angles=[0, 90, 180, 270], num_crops=1)
             for angle in angles:
                 # Rotate images for the given angle
                 rotated_images = [TF.rotate(images[:, crop_idx], angle) for crop_idx in range(num_crops)]
-                rotated_images = torch.stack(rotated_images, dim=1)  # Restacking to maintain the [batch, crops, C, H, W] format
+                rotated_images = torch.stack(rotated_images,
+                                             dim=1)  # Restacking to maintain the [batch, crops, C, H, W] format
 
                 # Extract features for each rotated batch of images
-                crop_features = [model(rotated_images[:, crop_idx].to(args.device, non_blocking=True)).cpu() for crop_idx in range(num_crops)]
+                crop_features = [model(rotated_images[:, crop_idx].to(args.device, non_blocking=True)).cpu() for
+                                 crop_idx in range(num_crops)]
                 crop_features = torch.stack(crop_features, dim=0)  # [num_crops, batch_size, feature_dim]
 
                 # Collect features for all angles
                 angle_features_list.append(crop_features)
 
             # Combine features from all angles
-            features_per_batch = torch.stack(angle_features_list, dim=0)  # [num_angles, num_crops, batch_size, feature_dim]
+            features_per_batch = torch.stack(angle_features_list,
+                                             dim=0)  # [num_angles, num_crops, batch_size, feature_dim]
             all_features.append(features_per_batch)
             labels.append(bin_labels)
 
@@ -319,10 +337,12 @@ def ensemble_score(args, key, train_feat, val_feat, train_norm, val_norm, angles
         # Compute scores for each crop at the current angle
 
         if key == 'locsvm':  # for locsvm send not normalized training features
-            crop_scores = [evaluate_metric(args, key, train_feat[angle_index, 0], val_norm[angle_index, crop_idx], val_feat[angle_index, crop_idx]) for crop_idx in
+            crop_scores = [evaluate_metric(args, key, train_feat[angle_index, 0], val_norm[angle_index, crop_idx],
+                                           val_feat[angle_index, crop_idx]) for crop_idx in
                            range(val_norm.shape[1])]
         else:
-            crop_scores = [evaluate_metric(args, key, train_norm[angle_index, 0], val_norm[angle_index, crop_idx], val_feat[angle_index, crop_idx]) for crop_idx in
+            crop_scores = [evaluate_metric(args, key, train_norm[angle_index, 0], val_norm[angle_index, crop_idx],
+                                           val_feat[angle_index, crop_idx]) for crop_idx in
                            range(val_norm.shape[1])]
         # Append the average score across crops for this angle
         ensemble_scores.append(np.mean(crop_scores, axis=0))
@@ -335,7 +355,8 @@ def eval_embed(args, model, train_loader, val_loader):
     angles = [0, 90, 180, 270]
     # Extract and normalize features for both training and validation datasets
     train_feat, train_norm, _ = extract_and_normalize_features(args, model, train_loader, angles, num_crops=1)
-    val_feat, val_norm, y_test = extract_and_normalize_features(args, model, val_loader, angles, num_crops=args.ensemble)
+    val_feat, val_norm, y_test = extract_and_normalize_features(args, model, val_loader, angles,
+                                                                num_crops=args.ensemble)
 
     results = {}
     # Evaluate metrics for each key in evaluation metrics

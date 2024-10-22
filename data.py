@@ -6,7 +6,23 @@ from torchvision import datasets
 from torchvision.transforms import Compose
 
 from transforms import *
-from util import CIFAR100Coarse, CatsVsDogsDataset, FashionMNISTRGB, MVTecAD, CutPaste, CutPasteScar
+from util import CIFAR100Coarse, CatsVsDogsDataset, FashionMNISTRGB, MVTecAD, CutPaste, CutPasteScar, patch_ex
+import cv2
+
+
+def plot_sample_vs_sample_cp(sample, sample_cp):
+    fig, ax = plt.subplots(1, 2, figsize=(8, 4))
+
+    ax[0].imshow(sample)
+    ax[0].set_title('Original Sample')
+    ax[0].axis('off')
+
+    ax[1].imshow(sample_cp)
+    ax[1].set_title('Patched Sample (sample_cp)')
+    ax[1].axis('off')
+
+    plt.tight_layout()
+    plt.show()
 
 
 class SyntheticOutlierDataset(Dataset):
@@ -19,34 +35,39 @@ class SyntheticOutlierDataset(Dataset):
         # Define trasnforms
         self.shift_transform = args.shift_transform
         self.transform = transform
-        self.transform_cutpaste = CutPaste(p=1.0, scale=(0.02, 0.15), ratio=(0.3, 3.3))  # mvtec
-        self.transform_cutpaste_scar = CutPasteScar(p=1.0, width_range=(2, 16), height_range=(10, 25),
-                                                    rotation_range=(-45, 45), jitter_params=(0.4, 0.4, 0.4, 0.4))  # mvtec
+        # self.transform_cutpaste = CutPaste(scale=(0.02, 0.15), ratio=(0.3, 3.3))  # mvtec
+        # self.transform_cutpaste_scar = CutPasteScar(width_range=(2, 16), height_range=(10, 25),
+        #                                             rotation_range=(-45, 45),
+        #                                             jitter_params=(0.1, 0.1, 0.1, 0.1))  # mvtec
+        self.mvtec_jitter = transforms.ColorJitter(0.1, 0.1, 0.1, 0.1)
 
         # Generate synthetic outliers
         self.samples, self.bin_labels, self.labels = self._expose_samples_with_labels(samples, labels)
         self.oe = self._load_oe(args.oe)  # only when arguments is true for outlier exposure
-        self.current_oes = list(range(len(self.oe))) if self.oe is not None else []  # this can be updated during training
+        self.current_oes = list(
+            range(len(self.oe))) if self.oe is not None else []  # this can be updated during training
 
     def __getitem__(self, index):
         if self.args.dataset == 'mvtec':
             # Get the sample and its cut-paste variations
-            sample = self.samples[index]
-            sample_cp = self.transform_cutpaste(sample)
-            sample_cps = self.transform_cutpaste_scar(sample)
+            sample = self.mvtec_jitter(self.samples[index])
+            if random.random() < 0.5:
+                sample_two = self.mvtec_jitter(random.choice(self.samples))
+                sample_cp = patch_ex(sample, sample_two)
+            else:
+                sample_cp = patch_ex(sample)
 
             # Generate two views for each sample
             view1_sample, view2_sample = self.transform(sample), self.transform(sample)
             view1_cp, view2_cp = self.transform(sample_cp), self.transform(sample_cp)
-            view1_cps, view2_cps = self.transform(sample_cps), self.transform(sample_cps)
 
             # Combine views into lists
-            view1 = [view1_sample, view1_cp, view1_cps]
-            view2 = [view2_sample, view2_cp, view2_cps]
+            view1 = [view1_sample, view1_cp]
+            view2 = [view2_sample, view2_cp]
 
             # Assign bin_labels and labels for each view
-            bin_labels = [1, -1, -1]  # 1 for sample, -1 for sample_cp and sample_cps
-            labels = [0, 1, 2]  # 0 for sample, 1 for sample_cp, 2 for sample_cps
+            bin_labels = [1, -1]  # 1 for sample, -1 for sample_cp and sample_cps
+            labels = [0, 1]  # 0 for sample, 1 for sample_cp, 2 for sample_cps
 
             return view1, view2, bin_labels, labels
 
@@ -67,8 +88,9 @@ class SyntheticOutlierDataset(Dataset):
 
         exposed_samples, exposed_bin_labels, exposed_labels = [], [], []
 
-        cutpaste = CutPaste(p=1.0, scale=(0.02, 0.15), ratio=(0.3, 3.3))
-        cutpastescar = CutPasteScar(p=1.0, width_range=(2, 16), height_range=(10, 25), rotation_range=(-45, 45), jitter_params=(0.1, 0.1, 0.1, 0.1))
+        cutpaste = CutPaste(scale=(0.02, 0.15), ratio=(0.3, 3.3))
+        cutpastescar = CutPasteScar(width_range=(2, 16), height_range=(10, 25), rotation_range=(-45, 45),
+                                    jitter_params=(0.1, 0.1, 0.1, 0.1))
 
         aug_functions = {
             'rot90': lambda img: img.rotate(90),
@@ -99,9 +121,11 @@ class SyntheticOutlierDataset(Dataset):
 
             # For debug, you can plot function for the first original sample and its NIs
             if plot:
-                self._plot_samples_with_labels(exposed_samples[-(len(self.shift_transform) + 1):], exposed_labels[-(len(self.shift_transform) + 1):])
+                self._plot_samples_with_labels(exposed_samples[-(len(self.shift_transform) + 1):],
+                                               exposed_labels[-(len(self.shift_transform) + 1):])
 
-        return exposed_samples, torch.tensor(exposed_bin_labels, dtype=torch.long), torch.tensor(exposed_labels, dtype=torch.long)
+        return exposed_samples, torch.tensor(exposed_bin_labels, dtype=torch.long), torch.tensor(exposed_labels,
+                                                                                                 dtype=torch.long)
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -179,6 +203,7 @@ def get_loader(args):
         "num_workers": args.workers,
         "pin_memory": True,
         "drop_last": True,
+        "persistent_workers": True,
         "shuffle": not sampler
     }
 
@@ -219,11 +244,13 @@ def _load_cifar10(args):
     _ = datasets.CIFAR10(root=args.data_folder, train=False, download=True)  # just for downloading in case not yet
 
     # Preprocess the train dataset for anomaly detection
-    train_imgs, train_bin_labels, train_labels = to_anomaly_dataset(train_dataset, normal_class=args.normal_class, gamma=args.gamma)
+    train_imgs, train_bin_labels, train_labels = to_anomaly_dataset(train_dataset, normal_class=args.normal_class,
+                                                                    gamma=args.gamma)
 
     # Create a TrainDataset instance with the preprocessed data and specified transformations
     train_dataset = SyntheticOutlierDataset(args, train_imgs, train_labels, transform=train_transform)
-    train_c_dataset = TestDataset(train_imgs, train_bin_labels, train_labels, transform=test_transform)  # used for computing mean
+    train_c_dataset = TestDataset(train_imgs, train_bin_labels, train_labels,
+                                  transform=test_transform)  # used for computing mean
 
     return train_dataset, train_c_dataset
 
@@ -241,7 +268,8 @@ def _load_cifar10w(args):
 
     # Create a TrainDataset instance with the preprocessed data and specified transformations
     train_dataset = SyntheticOutlierDataset(args, train_imgs, train_labels, transform=train_transform)
-    train_c_dataset = TestDataset(train_imgs, train_bin_labels, train_labels, transform=test_transform)  # used for computing mean
+    train_c_dataset = TestDataset(train_imgs, train_bin_labels, train_labels,
+                                  transform=test_transform)  # used for computing mean
     return train_dataset, train_c_dataset
 
 
@@ -258,11 +286,13 @@ def _load_cifar100_super(args):
     _ = CIFAR100Coarse(root=args.data_folder, train=False, download=True)
 
     # Preprocess the train dataset for anomaly detection
-    train_imgs, train_bin_labels, train_labels = to_anomaly_dataset(train_dataset, normal_class=args.normal_class, gamma=args.gamma)
+    train_imgs, train_bin_labels, train_labels = to_anomaly_dataset(train_dataset, normal_class=args.normal_class,
+                                                                    gamma=args.gamma)
 
     # Create a TrainDataset instance with the preprocessed data and specified transformations
     train_dataset = SyntheticOutlierDataset(args, train_imgs, train_labels, transform=train_transform)
-    train_c_dataset = TestDataset(train_imgs, train_bin_labels, train_labels, transform=test_transform)  # used for computing mean
+    train_c_dataset = TestDataset(train_imgs, train_bin_labels, train_labels,
+                                  transform=test_transform)  # used for computing mean
     return train_dataset, train_c_dataset
 
 
@@ -275,11 +305,13 @@ def _load_fmnist(args):
     _ = FashionMNISTRGB(root=args.data_folder, train=False, download=True)
 
     # Preprocess the train dataset for anomaly detection
-    train_imgs, train_bin_labels, train_labels = to_anomaly_dataset(train_dataset, normal_class=args.normal_class, gamma=args.gamma)
+    train_imgs, train_bin_labels, train_labels = to_anomaly_dataset(train_dataset, normal_class=args.normal_class,
+                                                                    gamma=args.gamma)
 
     # Create a TrainDataset instance with the preprocessed data and specified transformations
     train_dataset = SyntheticOutlierDataset(args, train_imgs, train_labels, transform=train_transform)
-    train_c_dataset = TestDataset(train_imgs, train_bin_labels, train_labels, transform=test_transform)  # used for computing mean
+    train_c_dataset = TestDataset(train_imgs, train_bin_labels, train_labels,
+                                  transform=test_transform)  # used for computing mean
     return train_dataset, train_c_dataset
 
 
@@ -292,11 +324,13 @@ def _load_cat_vs_dogs(args):
     _ = CatsVsDogsDataset(root=args.data_folder, train=False)
 
     # Preprocess the train dataset for anomaly detection
-    train_imgs, train_bin_labels, train_labels = to_anomaly_dataset(train_dataset, normal_class=args.normal_class, gamma=args.gamma)
+    train_imgs, train_bin_labels, train_labels = to_anomaly_dataset(train_dataset, normal_class=args.normal_class,
+                                                                    gamma=args.gamma)
 
     # Create a TrainDataset instance with the preprocessed data and specified transformations
     train_dataset = SyntheticOutlierDataset(args, train_imgs, train_labels, transform=train_transform)
-    train_c_dataset = TestDataset(train_imgs, train_bin_labels, train_labels, transform=test_transform)  # used for computing mean
+    train_c_dataset = TestDataset(train_imgs, train_bin_labels, train_labels,
+                                  transform=test_transform)  # used for computing mean
     return train_dataset, train_c_dataset
 
 
@@ -313,12 +347,33 @@ def _load_mvtec(args, size=256):
 
     # Resize images to the target size
     resize = transforms.Resize(size=size, interpolation=InterpolationMode.BILINEAR)
-    resized_imgs = [resize(transforms.ToPILImage()(img)) if isinstance(img, torch.Tensor) else resize(img) for img in train_imgs]
+    resized_imgs = [resize(transforms.ToPILImage()(img)) if isinstance(img, torch.Tensor) else resize(img) for img in
+                    train_imgs]
+    #
+    # # Loop through each image, apply the patch_ex function, and plot the results
+    # for idx, image in enumerate(resized_imgs):
+    #     # Call the patch_ex function on each image
+    #     modified_img, label = patch_ex(np.array(image), verbose=False)
+    #
+    #     # Plot the original and modified images
+    #     fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+    #     ax[0].imshow(cv2.cvtColor(np.array(image), cv2.COLOR_BGR2RGB))
+    #     ax[0].set_title('Original Image')
+    #     ax[0].axis('off')
+    #
+    #     ax[1].imshow(cv2.cvtColor(modified_img, cv2.COLOR_BGR2RGB))
+    #     ax[1].set_title('Modified Image')
+    #     ax[1].axis('off')
+    #
+    #     plt.tight_layout()
+    #     plt.show()
+
     train_imgs = resized_imgs
 
     # Create a TrainDataset instance with the preprocessed data and specified transformations
     train_dataset = SyntheticOutlierDataset(args, train_imgs, train_labels, transform=train_transform)
-    train_c_dataset = TestDataset(train_imgs, train_bin_labels, train_labels, transform=test_transform)  # used for computing mean
+    train_c_dataset = TestDataset(train_imgs, train_bin_labels, train_labels,
+                                  transform=test_transform)  # used for computing mean
 
     return train_dataset, train_c_dataset
 
