@@ -53,9 +53,11 @@ class SyntheticOutlierDataset(Dataset):
             sample = self.mvtec_jitter(self.samples[index])
             if random.random() < 0.5:
                 sample_two = self.mvtec_jitter(random.choice(self.samples))
-                sample_cp = patch_ex(sample, sample_two)
+                cutpaste = random.random() < 0.5
+                sample_cp = patch_ex(sample, sample_two, cutpaste_patch_generation=cutpaste)
             else:
-                sample_cp = patch_ex(sample)
+                cutpaste = random.random() < 0.5
+                sample_cp = patch_ex(sample, cutpaste_patch_generation=cutpaste)
 
             # Generate two views for each sample
             view1_sample, view2_sample = self.transform(sample), self.transform(sample)
