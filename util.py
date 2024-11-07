@@ -731,7 +731,7 @@ def patch_ex(ima_dest, ima_src=None, same=False, num_patches=1,
         min_overlap_pct = None
         min_object_pct = None
         gamma_params = None
-        num_patches = 1
+        # num_patches = 1
 
     ima_src = ima_dest.copy() if same or (ima_src is None) else ima_src
 

@@ -51,11 +51,9 @@ class SyntheticOutlierDataset(Dataset):
         if self.args.dataset == 'mvtec':
             # Get the sample and its cut-paste variations
             sample = self.mvtec_jitter(self.samples[index])
-            if random.random() < 0.5:
-                sample_two = self.mvtec_jitter(random.choice(self.samples))
-                sample_cp = patch_ex(sample, sample_two)
-            else:
-                sample_cp = patch_ex(sample)
+            use_cutpaste = random.random() < 0.5
+            num_patches = random.choice([1, 2, 3])
+            sample_cp = patch_ex(sample, cutpaste_patch_generation=use_cutpaste, num_patches=num_patches)
 
             # Generate two views for each sample
             view1_sample, view2_sample = self.transform(sample), self.transform(sample)
