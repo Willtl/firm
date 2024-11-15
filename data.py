@@ -35,12 +35,6 @@ class SyntheticOutlierDataset(Dataset):
         # Define trasnforms
         self.shift_transform = args.shift_transform
         self.transform = transform
-        # self.transform_cutpaste = CutPaste(scale=(0.02, 0.15), ratio=(0.3, 3.3))  # mvtec
-        # self.transform_cutpaste_scar = CutPasteScar(width_range=(2, 16), height_range=(10, 25),
-        #                                             rotation_range=(-45, 45),
-        #                                             jitter_params=(0.1, 0.1, 0.1, 0.1))  # mvtec
-        self.mvtec_jitter = transforms.ColorJitter(0.1, 0.1, 0.1, 0.1)
-
         # Generate synthetic outliers
         self.samples, self.bin_labels, self.labels = self._expose_samples_with_labels(samples, labels)
         self.oe = self._load_oe(args.oe)  # only when arguments is true for outlier exposure
@@ -50,10 +44,8 @@ class SyntheticOutlierDataset(Dataset):
     def __getitem__(self, index):
         if self.args.dataset == 'mvtec':
             # Get the sample and its cut-paste variations
-            sample = self.mvtec_jitter(self.samples[index])
-            use_cutpaste = random.random() < 0.5
-            num_patches = random.choice([1, 2, 3])
-            sample_cp = patch_ex(sample, cutpaste_patch_generation=use_cutpaste, num_patches=num_patches)
+            sample = self.samples[index]
+            sample_cp = patch_ex(sample)
 
             # Generate two views for each sample
             view1_sample, view2_sample = self.transform(sample), self.transform(sample)
