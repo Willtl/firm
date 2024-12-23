@@ -56,7 +56,7 @@ def parse_option():
     # synthetic outliers
     parser.add_argument('--shift_transform', type=str, default='', help='Transformations (rot90, rot180, rot270)',
                         choices=['rot90', 'rot180', 'rot270', 'cutpaste', 'cutpastescar'])
-    parser.add_argument('--oe', type=str, default='mvtec_gen', choices=['', '300k', 'sdas'],
+    parser.add_argument('--oe', type=str, default='sdas', choices=['', '300k', 'sdas'],
                         help='path to outlier exposure dataset .npy file (300k set is from https://github.com/hendrycks/outlier-exposure)')
 
     # other setting
