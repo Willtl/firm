@@ -24,6 +24,7 @@ from torchvision.datasets import VisionDataset
 from torchvision.datasets.folder import is_image_file
 from torchvision.datasets.utils import download_and_extract_archive
 from torchvision.transforms import functional as F
+from zipfile import ZipFile
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
@@ -1041,3 +1042,67 @@ def get_scheduler(args, optimizer, train_loader, pct_start=0.01):
         print('lr_scheduler initialized with total_steps:', total_steps)
 
     return scheduler
+
+
+def get_cifar_oe_300k():
+    file_path = 'datasets/300K_random_images.npy'
+    try:
+        # Try loading the file
+        array_images = np.load(file_path)
+        # Convert each image in the numpy array to a PIL image and store in a list
+        oe_images = [Image.fromarray(img) for img in array_images]
+        return oe_images
+    except FileNotFoundError:
+        # Raise a FileNotFoundError with a custom message
+        raise FileNotFoundError(
+            f"File '{file_path}' not found. Please download it from: "
+            "https://people.eecs.berkeley.edu/~hendrycks/300K_random_images.npy "
+            "and place it in the 'datasets' directory."
+        )
+
+
+def get_mvtec_gen(normal_class):
+    # Define file paths
+    zip_file_path = 'datasets/sia_mvtec_anomaly_images.zip'
+    extracted_dir = 'datasets/sdas'
+    npy_file_path = f'{extracted_dir}/{normal_class}.npy'
+
+    # Check if the .npy file for the specific class exists
+    if not os.path.exists(npy_file_path):
+        # Check if the zip file exists
+        if not os.path.exists(zip_file_path):
+            print("Downloading sia_mvtec_anomaly_images.zip...")
+            file_id = "12gJAnoELoueBcwl8WJk7Yst-6USSWH-x"
+            gdown.download(f'https://drive.google.com/uc?id={file_id}', zip_file_path, quiet=False)
+
+        # Extract the zip file if the directory doesn't exist
+        if not os.path.exists(extracted_dir):
+            print("Extracting MVTEC synthetic outliers zip file...")
+            with ZipFile(zip_file_path, 'r') as zip_ref:
+                zip_ref.extractall('datasets')
+
+        # Verify that the directory for the class exists
+        class_dir = os.path.join(extracted_dir, normal_class)
+        if not os.path.exists(class_dir):
+            raise FileNotFoundError(
+                f"Class directory '{class_dir}' not found in the extracted data."
+            )
+
+        print(f"Processing images for class '{normal_class}'...")
+        images = []
+        for img_file in os.listdir(class_dir):
+            if img_file.endswith(('.png', '.jpg', '.jpeg')):
+                img_path = os.path.join(class_dir, img_file)
+                img = Image.open(img_path).convert('RGB')
+                images.append(np.array(img))
+
+        # Save the processed images as a .npy file
+        print(f"Saving processed data for class '{normal_class}' as .npy...")
+        np.save(npy_file_path, np.array(images))
+
+    # Load the .npy file and return the images
+    print(f"Loading images for class '{normal_class}' from .npy file...")
+    array_images = np.load(npy_file_path)
+    mvtec_images = [Image.fromarray(img) for img in array_images]
+
+    return mvtec_images

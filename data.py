@@ -1,13 +1,14 @@
 import PIL.Image
 import torch
 from matplotlib import pyplot as plt
+from mkl_random.mklrand import normal
 from torch.utils.data import Dataset, DataLoader
 from torchvision import datasets
 from torchvision.transforms import Compose
 
 from transforms import *
-from util import CIFAR100Coarse, CatsVsDogsDataset, FashionMNISTRGB, MVTecAD, CutPaste, CutPasteScar, patch_ex
-import cv2
+from util import (CIFAR100Coarse, CatsVsDogsDataset, FashionMNISTRGB, MVTecAD,
+                  CutPaste, CutPasteScar, patch_ex, get_cifar_oe_300k, get_mvtec_gen)
 
 
 def plot_sample_vs_sample_cp(sample, sample_cp):
@@ -37,7 +38,7 @@ class SyntheticOutlierDataset(Dataset):
         self.transform = transform
         # Generate synthetic outliers
         self.samples, self.bin_labels, self.labels = self._expose_samples_with_labels(samples, labels)
-        self.oe = self._load_oe(args.oe)  # only when arguments is true for outlier exposure
+        self.oe = self._load_oe(args.oe, args.normal_class)  # only when arguments is true for outlier exposure
         self.current_oes = list(
             range(len(self.oe))) if self.oe is not None else []  # this can be updated during training
 
@@ -45,7 +46,12 @@ class SyntheticOutlierDataset(Dataset):
         if self.args.dataset == 'mvtec':
             # Get the sample and its cut-paste variations
             sample = self.samples[index]
-            sample_cp = patch_ex(sample)
+
+            if self.oe is not None:
+                oe_index = random.choice(self.current_oes)
+                sample_cp = self.oe[oe_index]
+            else:
+                sample_cp = patch_ex(sample)
 
             # Generate two views for each sample
             view1_sample, view2_sample = self.transform(sample), self.transform(sample)
@@ -129,22 +135,11 @@ class SyntheticOutlierDataset(Dataset):
             plt.axis('off')
         plt.show()
 
-    def _load_oe(self, oe_name):
+    def _load_oe(self, oe_name, normal_class):
         if '300k' in oe_name:
-            file_path = 'datasets/300K_random_images.npy'
-            try:
-                # Try loading the file
-                array_images = np.load(file_path)
-                # Convert each image in the numpy array to a PIL image and store in a list
-                oe_images = [Image.fromarray(img) for img in array_images]
-                return oe_images
-            except FileNotFoundError:
-                # Raise a FileNotFoundError with a custom message
-                raise FileNotFoundError(
-                    f"File '{file_path}' not found. Please download it from: "
-                    "https://people.eecs.berkeley.edu/~hendrycks/300K_random_images.npy "
-                    "and place it in the 'datasets' directory."
-                )
+            return get_cifar_oe_300k()
+        elif 'sdas':
+            return get_mvtec_gen(normal_class)
         return None
 
 
