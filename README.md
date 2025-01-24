@@ -22,6 +22,3 @@ All results, including model checkpoints and evaluation logs, will be automatica
 ```bash
 save/{dataset_name}_models/{experiment_name}/trial_{trial_number}/
 ```
-
-## Citation
-This work (and repository) is private and currently under double-blind review.
