@@ -13,30 +13,44 @@ pip install git+https://github.com/Willtl/firm.git
 ---
 
 ## Quickstart
-```
+
+```python
 import torch
 import torch.nn.functional as F
 from firm import FIRMLoss
 
-torch.manual_seed(0)
-B, D = 4, 128
-f1 = F.normalize(torch.randn(B, D), dim=1)
-f2 = F.normalize(torch.randn(B, D), dim=1)
-labels = torch.tensor([0, 0, -1, -1])  # -1 = outlier
+# Example feature dimensions
+B, D = 4, 128  # Batch size (B) and feature dimension (D)
 
+# Simulate features from two augmented views of the same batch of images
+# x_view1, x_view2 → two stochastic augmentations of x (e.g., crop, color jitter)
+# f(·) = encoder network, g(·) = projection head
+# f1 = g(f(x_view1)), f2 = g(f(x_view2)), both L2-normalized
+f1 = F.normalize(torch.randn(B, D), dim=1)  # Embeddings for first augmented view
+f2 = F.normalize(torch.randn(B, D), dim=1)  # Embeddings for second augmented view
+
+# Labels: 0 for inliers, -1 for outliers
+# In practice, -1 can represent synthetic anomalies generated during training 
+labels = torch.tensor([0, 0, -1, -1])  
+
+# Initialize FIRMLoss
+# tau = temperature scaling factor
+# outlier_label = label assigned to outliers in 'labels'
+# mode:
+#   "concat"   → 2N × 2N NT-Xent loss across both views
+#   "pairwise" → N × N InfoNCE; outliers only match their own paired view
 loss_fn = FIRMLoss(tau=0.1, outlier_label=-1, mode="concat")
+
+# Compute loss value
 loss = loss_fn(f1, f2, labels)
-print(loss.item())
+print(loss.item())  # Output: scalar loss
 ```
-Modes:
-- "concat": uses 2N×2N NT-Xent loss across both views
-- "pairwise": uses N×N InfoNCE; outliers only match their paired view
 
 Documentation can be found in **[View Documentation](https://wtlunar.com/firm/)**.
 
 ---
 
-## Paper Summary
+## Paper Summary - Contrastive Representation Modeling for Anomaly Detection 
 
 Conventional contrastive learning objectives are not inherently designed for anomaly detection, where the training distribution consists almost entirely of a single semantic class. In such settings, class collision occurs: inlier samples, despite being semantically aligned, are inadvertently treated as negatives. This disrupts the representation space by inflating intra-class variance and blurring anomaly boundaries.
 
