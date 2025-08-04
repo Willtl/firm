@@ -37,8 +37,8 @@ labels = torch.tensor([0, 0, -1, -1])
 # tau = temperature scaling factor
 # outlier_label = label assigned to outliers in 'labels'
 # mode:
-#   "concat"   → 2N × 2N NT-Xent loss across both views
-#   "pairwise" → N × N InfoNCE; outliers only match their own paired view
+#   "concat"   → 2N × 2N across both views
+#   "pairwise" → N × N 
 loss_fn = FIRMLoss(tau=0.1, outlier_label=-1, mode="concat")
 
 # Compute loss value
