@@ -1,21 +1,6 @@
 # FIRMLoss – Focused In-distribution Representation Modeling Loss
 
-> A structured contrastive loss designed for unsupervised anomaly detection.
-
-FIRMLoss redefines contrastive learning objectives to better model **compact inlier embeddings**, **diverse outliers**, and **strong inlier-anomaly separation**. It was introduced in the paper:
-
-```
-@inproceedings{lunardi2025contrastive,
-  title     = {Contrastive Representation Modeling for Anomaly Detection},
-  author    = {Lunardi, Willian T. and Banabila, Abdulrahman and Herzalla, Dania and Andreoni, Martin},
-  booktitle = {Proceedings of the 28th European Conference on Artificial Intelligence (ECAI 2025)},
-  year      = {2025}
-}
-```
-
-**[Preprint link](wtlunar.com/preprint.com)**  
-
----
+> Contrastive loss designed for semantic/industrial anomaly detection, and one-class classification.
 
 ## Installation
 
@@ -53,19 +38,39 @@ Documentation can be found in **[View Documentation](https://wtlunar.com/firm/)*
 
 ## Paper Summary
 
-FIRMLoss is introduced as part of a framework to address the limitations of traditional contrastive learning in anomaly detection.
+Conventional contrastive learning objectives are not inherently designed for anomaly detection, where the training distribution consists almost entirely of a single semantic class. In such settings, class collision occurs: inlier samples, despite being semantically aligned, are inadvertently treated as negatives. This disrupts the representation space by inflating intra-class variance and blurring anomaly boundaries.
 
-Key design goals:
-1. Compact clustering of inliers
-2. Strong separation between inliers and outliers
-3. Diversity preservation for synthetic outliers
 
-We extend the method with a patch-based learning and evaluation strategy tailored for industrial defect detection. Our method demonstrates:
-- Faster convergence
-- Improved anomaly localization
-- State-of-the-art or competitive results on semantic and industrial datasets
+**FIRMLoss** reframes the contrastive objective around the structural requirements of anomaly detection. It introduces a **principled positive–negative assignment strategy** that enforces three key representation properties:  
+1. **Inlier compactness** – normal samples form tight, consistent clusters.  
+2. **Inlier–outlier separability** – anomalies are projected into distinct, low-density regions.  
+3. **Outlier diversity preservation** – synthetic anomalies remain dispersed to maintain a rich contrastive signal.  
 
-Read the full paper: [ArXiv link here] (Replace with actual link)
+This targeted design yields an embedding space intrinsically aligned with the decision boundaries needed for accurate and robust distance-based anomaly detection, such as deep k-nearest neighbors (kNN) or Mahalanobis scoring.
+
+We further integrate FIRMLoss into a **patch-centric representation learning framework** tailored for industrial defect detection. This extension couples the loss with a structured sampling and evaluation pipeline that:  
+- Learns fine-grained, **region-aware embeddings** capable of precise anomaly localization without requiring pixel-level annotations.  
+- Generates **realistic, diverse synthetic defects** via controllable anomaly injection, improving robustness to real-world defect variability.  
+- Employs **foreground-aware sampling** to prioritize semantically relevant object regions and reduce background noise in representation learning.  
+
+**Results:** Across semantic anomaly detection (e.g., CIFAR-10/100, Fashion-MNIST) and industrial benchmarks (e.g., MVTec AD), this combined design delivers faster convergence, more robust embeddings, and state-of-the-art or competitive performance.
+
+**[Preprint link](https://arxiv.org/pdf/2006.13064)**  
+
+---
+
+Citation:
+```
+@inproceedings{lunardi2025contrastive,
+  author    = {Willian T. Lunardi and Abdulrahman Banabila and Dania Herzalla and Martin Andreoni},
+  title     = {Contrastive Representation Modeling for Anomaly Detection},
+  booktitle = {Proceedings of the 28th European Conference on Artificial Intelligence (ECAI)},
+  year      = {2025},
+  note      = {To appear}
+}
+
+```
+
 
 ---
 
