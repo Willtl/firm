@@ -46,7 +46,7 @@ loss = loss_fn(f1, f2, labels)
 print(loss.item())  # Output: scalar loss
 ```
 
-Documentation can be found in [View Documentation](https://wtlunar.com/firm/).
+[View Documentation](https://wtlunar.com/firm/).
 
 ---
 
