@@ -46,11 +46,11 @@ loss = loss_fn(f1, f2, labels)
 print(loss.item())  # Output: scalar loss
 ```
 
-Documentation can be found in **[View Documentation](https://wtlunar.com/firm/)**.
+Documentation can be found in [View Documentation](https://wtlunar.com/firm/).
 
 ---
 
-## Paper Summary - Contrastive Representation Modeling for Anomaly Detection 
+## Paper Summary – Contrastive Representation Modeling for Anomaly Detection 
 
 Conventional contrastive learning objectives are not inherently designed for anomaly detection, where the training distribution consists almost entirely of a single semantic class. In such settings, class collision occurs: inlier samples, despite being semantically aligned, are inadvertently treated as negatives. This disrupts the representation space by inflating intra-class variance and blurring anomaly boundaries.
 
