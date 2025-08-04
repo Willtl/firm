@@ -13,7 +13,7 @@ FIRMLoss redefines contrastive learning objectives to better model **compact inl
 }
 ```
 
-[Preprint link](https://arxiv.org/abs/...)  
+**[Preprint link](wtlunar.com/preprint.com)**  
 
 ---
 
@@ -47,7 +47,7 @@ Modes:
 - "concat": uses 2N×2N NT-Xent loss across both views
 - "pairwise": uses N×N InfoNCE; outliers only match their paired view
 
-Documentation can be found in `docs/index.html`.
+Documentation can be found in **[View Documentation](https://wtlunar.com/firm/)**.
 
 ---
 
