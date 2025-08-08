@@ -52,24 +52,24 @@ print(loss.item())  # Output: scalar loss
 
 ## Paper Summary – Contrastive Representation Modeling for Anomaly Detection 
 
-Conventional contrastive learning objectives are not inherently designed for anomaly detection, where the training distribution consists almost entirely of a single semantic class. In such settings, class collision occurs: inlier samples, despite being semantically aligned, are inadvertently treated as negatives. This disrupts the representation space by inflating intra-class variance and blurring anomaly boundaries.
+Conventional contrastive learning methods, including both instance-level and supervised variants, are not inherently designed for anomaly detection, where the training data is composed almost entirely of a single semantic class. In this setting, standard objectives either treat semantically similar inliers as negatives (in vanilla contrastive learning), or fail to preserve the diversity of outliers (in multi-positive schemes like SupCon). Both issues lead to suboptimal embeddings for distance-based anomaly detection, either by inflating inlier variance or collapsing outlier representations.
 
+_FIRMLoss_ redefines the contrastive learning objective to align with the structural requirements of anomaly detection. It introduces a _principled positive–negative assignment strategy_ that enforces three key properties in the representation space:
 
-**FIRMLoss** reframes the contrastive objective around the structural requirements of anomaly detection. It introduces a **principled positive–negative assignment strategy** that enforces three key representation properties:  
-1. **Inlier compactness** – normal samples form tight, consistent clusters.  
-2. **Inlier–outlier separability** – anomalies are projected into distinct, low-density regions.  
-3. **Outlier diversity preservation** – synthetic anomalies remain dispersed to maintain a rich contrastive signal.  
+1. _Inlier compactness_: Normal samples form tight, consistent clusters.
+2. _Inlier–outlier separability_: Anomalies are projected into distinct, low-density regions.
+3. _Outlier diversity preservation_: Synthetic anomalies remain dispersed to maintain a rich contrastive signal and encourage a discriminative representation space. This structured separation of outliers supports explainability by enabling the model to distinguish between different types of anomalies.
 
-This targeted design yields an embedding space intrinsically aligned with the decision boundaries needed for accurate and robust distance-based anomaly detection, such as deep k-nearest neighbors (kNN) or Mahalanobis scoring.
+FIRM yields an embedding space intrinsically aligned with the decision boundaries needed for accurate and robust distance-based anomaly detection, such as deep k-nearest neighbors (kNN) or Mahalanobis scoring.
 
-We further integrate FIRMLoss into a **patch-centric representation learning framework** tailored for industrial defect detection. This extension couples the loss with a structured sampling and evaluation pipeline that:  
-- Learns fine-grained, **region-aware embeddings** capable of precise anomaly localization without requiring pixel-level annotations.  
-- Generates **realistic, diverse synthetic defects** via controllable anomaly injection, improving robustness to real-world defect variability.  
-- Employs **foreground-aware sampling** to prioritize semantically relevant object regions and reduce background noise in representation learning.  
+We further integrate FIRMLoss into a  _patch-based learning_ strategy for industrial anomaly detection. This extension couples the loss with a sampling and evaluation pipeline that:  
+- Learns fine-grained, _region-aware embeddings_ capable of precise anomaly localization without requiring pixel-level supervision.  
+- Generates _realistic, diverse synthetic defects_ via controllable anomaly injection, improving robustness to real-world defect variability.  
+- Employs _foreground-aware sampling_ to prioritize semantically relevant object regions and reduce background noise in representation learning.  
 
-**Results:** Across semantic anomaly detection (e.g., CIFAR-10/100, Fashion-MNIST) and industrial benchmarks (e.g., MVTec AD), this combined design delivers faster convergence, more robust embeddings, and state-of-the-art or competitive performance.
+_Results:_ Across semantic anomaly detection (e.g., CIFAR-10/100, Fashion-MNIST) and industrial benchmarks (e.g., MVTec AD), this combined design delivers faster convergence, more robust embeddings, and state-of-the-art or competitive performance.
 
-**[Preprint link](https://arxiv.org/pdf/2006.13064)**  
+_[Preprint link](https://arxiv.org/pdf/2006.13064)_  
 
 ---
 
