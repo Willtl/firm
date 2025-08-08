@@ -69,7 +69,7 @@ We further integrate FIRMLoss into a  _patch-based learning_ strategy for indust
 
 _Results:_ Across semantic anomaly detection (e.g., CIFAR-10/100, Fashion-MNIST) and industrial benchmarks (e.g., MVTec AD), this combined design delivers faster convergence, more robust embeddings, and state-of-the-art or competitive performance.
 
-_[Preprint link](https://arxiv.org/pdf/2501.05130)_  
+[Preprint link](https://arxiv.org/pdf/2501.05130)  
 
 ---
 
