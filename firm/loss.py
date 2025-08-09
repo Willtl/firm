@@ -72,6 +72,8 @@ class FIRMLoss(nn.Module):
             )
         self.mode = mode  # type: ignore[assignment]
 
+        self.last_mask = None  # placeholder for tests
+
     def forward(self, f1: torch.Tensor, f2: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
         """Compute the FIRM loss.
 
@@ -93,6 +95,8 @@ class FIRMLoss(nn.Module):
         ), "FIRMLoss: f1/f2 must have same shape and match labels"
 
         if self.mode == "pairwise":
+            labels = labels.view(-1, 1)
+
             # Compute the cosine similarity (given that f1 and f2 are L2-normalized)
             cos_similarity = torch.mm(f1, f2.t())
 
@@ -100,11 +104,10 @@ class FIRMLoss(nn.Module):
             logits = cos_similarity / self.tau
             q = F.log_softmax(logits, dim=1)  # predicted probability distribution
 
-            labels = labels.view(-1, 1)
-
-            # Inliers are anything NOT equal to outlier_label
-            inlier_mask_row = (labels != self.outlier_label).float()
-            inlier_mask = torch.mm(inlier_mask_row, inlier_mask_row.t())
+            # build an N×N equality matrix (1 if labels match, else 0)
+            same_cls = (labels == labels.t()).float()
+            # keep those rows/cols that are *not* outliers
+            inlier_mask = same_cls * (labels != self.outlier_label).float()
 
             # For outliers, only the (i,i) match (x_i with its paired view) is positive
             non_inlier_row = (labels == self.outlier_label).float()
@@ -113,6 +116,8 @@ class FIRMLoss(nn.Module):
 
             # Combine: inliers use full inlier_mask; outliers use only their diagonal
             mask = inlier_mask + outlier_diag_mask
+            print("pairwise mask")
+            print(mask)
 
             # compute target distribution
             p = mask / mask.sum(1, keepdim=True).clamp(min=1.0)
@@ -139,9 +144,9 @@ class FIRMLoss(nn.Module):
             # Create extended labels to match the concatenated features
             extended_labels = torch.cat([labels, labels], dim=0).view(-1, 1)
 
-            # Inliers: label != outlier_label
-            inlier_row = (extended_labels != self.outlier_label).float()
-            inlier_mask = torch.mm(inlier_row, inlier_row.t())
+            # # equality-based positives for inliers
+            same_cls_ext = (extended_labels == extended_labels.t()).float()
+            inlier_mask = same_cls_ext * (extended_labels != self.outlier_label).float()
 
             # For outliers: only (x, x+) are positives
             n = features.size(0)
@@ -153,7 +158,8 @@ class FIRMLoss(nn.Module):
             # Row-wise combine: inliers use inlier_mask; outliers use pair-only
             mask = inlier_mask * (extended_labels != self.outlier_label).float() + outlier_pair_mask
             mask.fill_diagonal_(0)
-
+            print("concat mask")
+            print(mask)
             row_pos = mask.sum(1)  # number of positives per row
             if torch.any(row_pos == 0):
                 bad = torch.nonzero(row_pos == 0).squeeze(1).tolist()
@@ -171,6 +177,8 @@ class FIRMLoss(nn.Module):
             # Calculate cross-entropy loss
             loss = -torch.sum(p * q) / extended_labels.size(0)
 
+        self.last_mask = mask.detach().clone()  # for test only
+
         return loss
 
 
@@ -179,15 +187,15 @@ if __name__ == "__main__":
     import torch.nn.functional as F
 
     torch.manual_seed(0)
-    B, D = 4, 128
+    B, D = 5, 128
     view1 = F.normalize(torch.randn(B, D), dim=1)
     view2 = F.normalize(torch.randn(B, D), dim=1)
-    labels = torch.tensor([0, 0, -1, -1])  # -1 = outlier
+    labels = torch.tensor([1, 2, 2, -1, -1])  # -1 = outlier
 
-    loss_fn = FIRMLoss(tau=0.1, outlier_label=-1, mode="concat")
+    loss_fn = FIRMLoss(tau=0.03, outlier_label=-1, mode="concat")
     loss = loss_fn(view1, view2, labels)
     print("Concat-mode loss:", loss.item())
 
-    loss_fn_pw = FIRMLoss(tau=0.1, outlier_label=-1, mode="pairwise")
+    loss_fn_pw = FIRMLoss(tau=0.03, outlier_label=-1, mode="pairwise")
     loss_pw = loss_fn_pw(view1, view2, labels)
     print("Pairwise-mode loss:", loss_pw.item())
