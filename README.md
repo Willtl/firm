@@ -14,43 +14,70 @@ pip install git+https://github.com/Willtl/firm.git
 
 ## Quickstart
 
+We illustrate two common settings. In both cases, the encoder $f_\theta:\mathcal{X}\to\mathbb{R}^d$ produces features that a projection head $g_\psi$ maps to unit-norm embeddings 
+
+```math
+z = \frac{g_\psi(f_\theta(x))}{\|g_\psi(f_\theta(x))\|}
+```
+
+The `outlier_label` in `labels` marks samples from the out-of-distribution (OOD), which can be real anomalies/outliers present in the training set or synthetic outliers generated during training to provide additional contrastive signal.
+
+### One-class / semantic anomaly detection
+
+Here the in-distribution (ID) consists of a single semantic class:
+
+```math
+\mathcal{Y}_{\mathrm{in}}=\{c_0\}, \qquad \mathcal{Y}_{\mathrm{out}}\cap \mathcal{Y}_{\mathrm{in}}=\varnothing
+```
+
+All ID samples share the same label (e.g., `0`), and OOD samples use the designated `outlier_label` (e.g., `-1`).
+
 ```python
 import torch
 import torch.nn.functional as F
 from firm import FIRMLoss
 
-# Example feature dimensions
-B, D = 4, 128  # Batch size (B) and feature dimension (D)
+B, D = 4, 128
+f1 = F.normalize(torch.randn(B, D), dim=1)
+f2 = F.normalize(torch.randn(B, D), dim=1)
 
-# Simulate features from two augmented views of the same batch of images
-# x_view1, x_view2 → two stochastic augmentations of x (e.g., crop, color jitter)
-# f(·) = encoder network, g(·) = projection head
-# f1 = g(f(x_view1)), f2 = g(f(x_view2)), both L2-normalized
-f1 = F.normalize(torch.randn(B, D), dim=1)  # Embeddings for first augmented view
-f2 = F.normalize(torch.randn(B, D), dim=1)  # Embeddings for second augmented view
+# 0 = in-distribution class c₀, -1 = out-of-distribution (anomaly)
+labels = torch.tensor([0, 0, -1, -1])
 
-# Labels: 0 for inliers, -1 for outliers
-# In practice, -1 can represent synthetic anomalies generated during training 
-labels = torch.tensor([0, 0, -1, -1])  
-
-# Initialize FIRMLoss
-# tau = temperature scaling factor
-# outlier_label = label assigned to outliers in 'labels'
-# mode:
-#   "concat"   → 2N × 2N across both views
-#   "pairwise" → N × N 
 loss_fn = FIRMLoss(tau=0.1, outlier_label=-1, mode="concat")
-
-# Compute loss value
 loss = loss_fn(f1, f2, labels)
-print(loss.item())  # Output: scalar loss
+```
+
+---
+
+### Multi-class in-distribution OOD detection
+
+Now the ID contains multiple semantic classes:
+
+```math
+\mathcal{Y}_{\mathrm{in}}=\{c_0,c_1,\dots,c_{C-1}\}, \qquad \mathcal{Y}_{\mathrm{out}}\cap \mathcal{Y}_{\mathrm{in}}=\varnothing
+```
+
+In this setting, the learning objective should simultaneously encourage **low intra-class variance** (compact clusters within each $c_i$), **high inter-class separation** (distinct boundaries between different $c_i$), **strong separation from outliers** (OOD pushed away from all ID clusters), and **separation among outliers themselves** (preventing outlier collapse). FIRMLoss implements this by treating all non-outlier labels as ID and forming positives only among samples of the same ID class; each OOD sample is positive only with its own augmented view, ensuring diversity in outlier representations.
+
+```python
+B, D = 6, 64
+f1 = F.normalize(torch.randn(B, D), dim=1)
+f2 = F.normalize(torch.randn(B, D), dim=1)
+
+# In-distribution classes: 0 and 1; -1 marks OOD
+labels = torch.tensor([0, 0, 1, 1, -1, -1])
+
+loss_fn = FIRMLoss(tau=0.1, outlier_label=-1, mode="pairwise")
+loss = loss_fn(f1, f2, labels)
 ```
 
 [View Documentation](https://wtlunar.com/firm/).
 
 ---
 
-## Paper Summary – Contrastive Representation Modeling for Anomaly Detection 
+## Contrastive Representation Modeling for Anomaly Detection
+### Summary
 
 Conventional contrastive learning methods, including both instance-level and supervised variants, are not inherently designed for anomaly detection, where the training data is composed almost entirely of a single semantic class. In this setting, standard objectives either treat semantically similar inliers as negatives (in vanilla contrastive learning), or fail to preserve the diversity of outliers (in multi-positive schemes like SupCon). Both issues lead to suboptimal embeddings for distance-based anomaly detection, either by inflating inlier variance or collapsing outlier representations.
 
