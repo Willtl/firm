@@ -22,6 +22,11 @@ z = \frac{g_\psi(f_\theta(x))}{\|g_\psi(f_\theta(x))\|}.
 
 The `outlier_label` in `labels` (usually denote as -1) marks samples from the OOD, which can be real anomalies/outliers present in the training set or synthetic outliers generated during training to provide additional contrastive signal.
 
+Note that, we assume `z1` and `z2` are already separated embeddings for the two augmented views of each sample (batch size `B`), but if you forward both views at once (`2B` samples) you can split them back as:  
+```python
+z1, z2 = torch.split(z, B, dim=0)
+```
+
 ### One-class / semantic anomaly detection
 
 Here the in-distribution (ID) consists of a single semantic class:
