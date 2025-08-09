@@ -148,9 +148,8 @@ class FIRMLoss(nn.Module):
             logits = cos_similarity / self.tau
             q = F.log_softmax(logits, dim=1)  # predicted probability distribution
 
-            # build an N×N equality matrix (1 if labels match, else 0)
+            # Build an N×N equality matrix
             same_cls = (labels == labels.t()).float()
-            # keep those rows/cols that are *not* outliers
             inlier_mask = same_cls * (labels != self.outlier_label).float()
 
             # For outliers, only the (i,i) match (x_i with its paired view) is positive
@@ -160,10 +159,8 @@ class FIRMLoss(nn.Module):
 
             # Combine: inliers use full inlier_mask; outliers use only their diagonal
             mask = inlier_mask + outlier_diag_mask
-            print("pairwise mask")
-            print(mask)
 
-            # compute target distribution
+            # Compute target distribution
             p = mask / mask.sum(1, keepdim=True).clamp(min=1.0)
 
             # Calculate cross-entropy loss
@@ -188,7 +185,7 @@ class FIRMLoss(nn.Module):
             # Create extended labels to match the concatenated features
             extended_labels = torch.cat([labels, labels], dim=0).view(-1, 1)
 
-            # # equality-based positives for inliers
+            # Equality-based positives for inliers
             same_cls_ext = (extended_labels == extended_labels.t()).float()
             inlier_mask = same_cls_ext * (extended_labels != self.outlier_label).float()
 
@@ -202,8 +199,7 @@ class FIRMLoss(nn.Module):
             # Row-wise combine: inliers use inlier_mask; outliers use pair-only
             mask = inlier_mask * (extended_labels != self.outlier_label).float() + outlier_pair_mask
             mask.fill_diagonal_(0)
-            print("concat mask")
-            print(mask)
+
             row_pos = mask.sum(1)  # number of positives per row
             if torch.any(row_pos == 0):
                 bad = torch.nonzero(row_pos == 0).squeeze(1).tolist()
