@@ -17,10 +17,10 @@ pip install git+https://github.com/Willtl/firm.git
 We illustrate two common settings. In both cases, the encoder $f_\theta:\mathcal{X}\to\mathbb{R}^d$ produces features that a projection head $g_\psi$ maps to unit-norm embeddings 
 
 ```math
-z = \frac{g_\psi(f_\theta(x))}{\|g_\psi(f_\theta(x))\|}
+z = \frac{g_\psi(f_\theta(x))}{\|g_\psi(f_\theta(x))\|}.
 ```
 
-The `outlier_label` in `labels` marks samples from the out-of-distribution (OOD), which can be real anomalies/outliers present in the training set or synthetic outliers generated during training to provide additional contrastive signal.
+The `outlier_label` in `labels` (usually denote as -1) marks samples from the out-of-distribution (OOD), which can be real anomalies/outliers present in the training set or synthetic outliers generated during training to provide additional contrastive signal.
 
 ### One-class / semantic anomaly detection
 
@@ -37,15 +37,19 @@ import torch
 import torch.nn.functional as F
 from firm import FIRMLoss
 
-B, D = 4, 128
-f1 = F.normalize(torch.randn(B, D), dim=1)
-f2 = F.normalize(torch.randn(B, D), dim=1)
+B, D = 4, 128   # B = batch size (number of samples), D = feature dimension
+# Each sample has two augmented views (view 1 and view 2), both projected and L2-normalized
+z1 = F.normalize(torch.randn(B, D), dim=1)   # View 1  
+z2 = F.normalize(torch.randn(B, D), dim=1)   # View 2  
 
-# 0 = in-distribution class c₀, -1 = out-of-distribution (anomaly)
+# labels[i] specifies whether sample i is in-distribution (ID) or out-of-distribution (OOD)
+#   0  → in-distribution class c₀
+#  -1  → designated outlier_label (OOD sample; e.g., real or synthetic anomaly)
 labels = torch.tensor([0, 0, -1, -1])
 
-loss_fn = FIRMLoss(tau=0.1, outlier_label=-1, mode="concat")
-loss = loss_fn(f1, f2, labels)
+# Initialize FIRMLoss with temperature=0.1 and compute loss
+loss_fn = FIRMLoss(tau=0.1, outlier_label=-1, mode="concat") 
+loss = loss_fn(z1, z2, labels)
 ```
 
 ---
@@ -62,14 +66,14 @@ In this setting, the learning objective should simultaneously encourage **low in
 
 ```python
 B, D = 6, 64
-f1 = F.normalize(torch.randn(B, D), dim=1)
-f2 = F.normalize(torch.randn(B, D), dim=1)
+z1 = F.normalize(torch.randn(B, D), dim=1)   # View 1 embeddings
+z2 = F.normalize(torch.randn(B, D), dim=1)   # View 2 embeddings
 
-# In-distribution classes: 0 and 1; -1 marks OOD
+# Two ID classes (0, 1) and OOD (-1); inliers form positives only within the same class
 labels = torch.tensor([0, 0, 1, 1, -1, -1])
 
 loss_fn = FIRMLoss(tau=0.1, outlier_label=-1, mode="pairwise")
-loss = loss_fn(f1, f2, labels)
+loss = loss_fn(z1, z2, labels)
 ```
 
 [View Documentation](https://wtlunar.com/firm/).
